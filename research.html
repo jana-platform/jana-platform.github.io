@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مخرجات البحث — جَنى</title>
+<meta name="description" content="جَنى — منصة ذكية تحوّل أبحاث الدراسات العليا إلى مخرجات تطبيقية تخدم المجتمع.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container">
+    <div class="page-head no-print">
+      <div>
+        <a href="dashboard.html" class="small">→ أبحاثي</a>
+        <h1 id="rTitle">…</h1>
+        <div class="small muted" id="rMeta"></div>
+      </div>
+      <button class="btn danger sm" id="delBtn">حذف البحث نهائياً</button>
+    </div>
+
+    <div id="state"><div class="card empty"><div class="spinner"></div>جارٍ التحميل…</div></div>
+
+    <div id="outputsWrap" class="hidden">
+      <div class="tabs" id="tabs"></div>
+      <div class="output-actions">
+        <button class="btn ghost sm" id="copyBtn">📋 نسخ النص</button>
+        <button class="btn ghost sm" id="pdfBtn">⬇️ تحميل PDF</button>
+      </div>
+      <div id="panels"></div>
+      <div class="card sectors no-print" id="sectorsBox"></div>
+    </div>
+  </div>
+</main>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+let outputs = [], active = null, pollTimer = null;
+
+const list = (arr) => `<ul>${(arr || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+
+// ===== عرض كل نوع مخرج =====
+const RENDER = {
+  policy_brief: (c) => `
+    <article class="doc">
+      <div class="doc-kicker">موجز سياسات</div>
+      <h2>${esc(c.title)}</h2>
+      <div class="summary"><b>الملخص التنفيذي:</b> ${esc(c.executive_summary)}</div>
+      <h3>القضية</h3><p>${esc(c.problem)}</p>
+      <h3>أبرز النتائج</h3>${list(c.key_findings)}
+      <h3>التوصيات</h3>
+      ${(c.recommendations || []).map((r, i) => `<div class="rec"><b>${i + 1}.</b> ${esc(r.text)}<br><span class="target">الجهة المعنية: ${esc(r.target)}</span></div>`).join("")}
+      <h3>الجمهور المستهدف</h3><p>${esc(c.target_audience)}</p>
+      <h3>الخاتمة</h3><p>${esc(c.conclusion)}</p>
+    </article>`,
+  poster: (c) => `
+    <article class="poster">
+      <div class="poster-head"><h2>${esc(c.title)}</h2></div>
+      <div class="poster-body">
+        <div class="poster-box wide"><h3>المقدمة</h3><p style="margin:0">${esc(c.introduction)}</p></div>
+        <div class="poster-box"><h3>الأهداف</h3>${list(c.objectives)}</div>
+        <div class="poster-box"><h3>المنهجية</h3><p style="margin:0">${esc(c.methodology)}</p></div>
+        <div class="poster-box g wide"><h3>أبرز النتائج</h3>${list(c.results)}</div>
+        <div class="poster-box g wide"><h3>الخلاصة</h3><p style="margin:0">${esc(c.conclusion)}</p></div>
+      </div>
+      <div class="poster-foot">${(c.keywords || []).map((k) => `<span class="chip l">${esc(k)}</span>`).join("")}</div>
+    </article>`,
+  social: (c) => {
+    const tags = (c.hashtags || []).map((h) => "#" + String(h).replace(/^#/, "").replace(/\s+/g, "_")).join(" ");
+    return `
+    <div class="social-card"><header><b>𝕏 سلسلة تغريدات</b><button class="btn ghost sm" data-copy="x">نسخ</button></header>
+      ${(c.x_thread || []).map((t, i) => `<div class="tweet"><span class="n">${i + 1}/${c.x_thread.length}</span>${esc(t)}</div>`).join("")}</div>
+    <div class="social-card"><header><b>💼 منشور LinkedIn</b><button class="btn ghost sm" data-copy="li">نسخ</button></header>
+      <div class="pre">${esc(c.linkedin_post)}</div></div>
+    <div class="social-card"><header><b>📸 نص إنستقرام</b><button class="btn ghost sm" data-copy="ig">نسخ</button></header>
+      <div class="pre">${esc(c.instagram_caption)}</div></div>
+    <div class="social-card"><header><b># الوسوم</b><button class="btn ghost sm" data-copy="tags">نسخ</button></header>
+      <div dir="auto">${esc(tags)}</div></div>`;
+  },
+};
+
+// ===== النص الخام للنسخ =====
+const bullets = (a) => (a || []).map((x) => "• " + x).join("\n");
+const PLAIN = {
+  policy_brief: (c) => `${c.title}\n\nالملخص التنفيذي:\n${c.executive_summary}\n\nالقضية:\n${c.problem}\n\nأبرز النتائج:\n${bullets(c.key_findings)}\n\nالتوصيات:\n${(c.recommendations || []).map((r, i) => `${i + 1}. ${r.text} (الجهة المعنية: ${r.target})`).join("\n")}\n\nالجمهور المستهدف:\n${c.target_audience}\n\nالخاتمة:\n${c.conclusion}`,
+  poster: (c) => `${c.title}\n\nالمقدمة:\n${c.introduction}\n\nالأهداف:\n${bullets(c.objectives)}\n\nالمنهجية:\n${c.methodology}\n\nأبرز النتائج:\n${bullets(c.results)}\n\nالخلاصة:\n${c.conclusion}\n\nكلمات مفتاحية: ${(c.keywords || []).join("، ")}`,
+  social: (c) => `سلسلة X:\n${(c.x_thread || []).map((t, i) => `${i + 1}/ ${t}`).join("\n\n")}\n\nLinkedIn:\n${c.linkedin_post}\n\nإنستقرام:\n${c.instagram_caption}\n\n${(c.hashtags || []).map((h) => "#" + h).join(" ")}`,
+};
+const SOCIAL_PART = {
+  x: (c) => (c.x_thread || []).join("\n\n"),
+  li: (c) => c.linkedin_post,
+  ig: (c) => c.instagram_caption,
+  tags: (c) => (c.hashtags || []).map((h) => "#" + String(h).replace(/^#/, "").replace(/\s+/g, "_")).join(" "),
+};
+
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+  const old = btn.textContent; btn.textContent = "✓ تم النسخ"; setTimeout(() => (btn.textContent = old), 1500);
+}
+
+function show(type) {
+  active = type;
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === type));
+  document.querySelectorAll("#panels > section").forEach((s) => s.classList.toggle("hidden", s.dataset.t !== type));
+}
+
+async function load() {
+  const { data: r, error } = await sb.from("research").select("*, outputs(*)").eq("id", id).maybeSingle();
+  if (error || !r) { state.innerHTML = `<div class="alert err">البحث غير موجود أو ليس لديك صلاحية عليه.</div>`; delBtn.classList.add("hidden"); return; }
+
+  document.title = `${r.title} — جَنى`;
+  rTitle.textContent = r.title;
+  rMeta.innerHTML = `${fmtDate(r.created_at)} · <span class="badge ${r.status}">${STATUS[r.status]}</span>
+    <span class="badge ${r.verification === "doi_matched" ? "verified" : "declared"}">${r.verification === "doi_matched" ? "موثّق عبر DOI" : "بإقرار الملكية"}</span>
+    ${r.file_deleted ? ` · <span class="muted">🔒 ملف البحث حُذف بعد المعالجة</span>` : ""}`;
+
+  if (r.status === "uploaded" || r.status === "processing") {
+    state.innerHTML = `<div class="card empty"><div class="spinner"></div><h3>جارٍ تحويل البحث… ✨</h3><p class="muted">تتحدث الصفحة تلقائياً عند الانتهاء.</p></div>`;
+    clearTimeout(pollTimer); pollTimer = setTimeout(load, 5000);
+    return;
+  }
+  if (r.status === "failed") {
+    state.innerHTML = `<div class="card"><div class="alert err"><b>تعذّر تحويل البحث.</b><br>${esc(r.error || "")}</div>
+      <p class="muted">حذفنا ملف البحث حفاظاً على خصوصيتك. تقدر ترفعه مرة ثانية.</p>
+      <a class="btn" href="upload.html">إعادة المحاولة</a></div>`;
+    return;
+  }
+
+  state.innerHTML = "";
+  outputsWrap.classList.remove("hidden");
+  const order = Object.keys(OUTPUT_TYPES);
+  outputs = r.outputs.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
+  tabs.innerHTML = outputs.map((o) => `<button type="button" data-t="${o.type}">${OUTPUT_TYPES[o.type].icon} ${OUTPUT_TYPES[o.type].label}</button>`).join("");
+  panels.innerHTML = outputs.map((o) => `<section data-t="${o.type}">${RENDER[o.type](o.content)}</section>`).join("");
+  tabs.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => show(b.dataset.t)));
+  panels.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => {
+    const c = outputs.find((o) => o.type === "social").content;
+    copy(SOCIAL_PART[b.dataset.copy](c), b);
+  }));
+  show(outputs[0]?.type);
+
+  const sectors = [...new Set(outputs.flatMap((o) => o.content.suggested_sectors || []))].filter((s) => SECTORS[s]);
+  sectorsBox.innerHTML = `<h3>🤝 قطاعات يمكن أن تستفيد من بحثك</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${sectors.map((s) => `<span class="chip">${SECTORS[s]}</span>`).join("") || '<span class="muted">—</span>'}</div>
+    <p class="muted small" style="margin:0">قريباً: دليل الجهات المستفيدة في السعودية مع اقتراح الجهات المناسبة لكل منتج.</p>`;
+}
+
+copyBtn.addEventListener("click", () => {
+  const o = outputs.find((x) => x.type === active);
+  if (o) copy(PLAIN[o.type](o.content), copyBtn);
+});
+pdfBtn.addEventListener("click", () => window.print());
+
+delBtn.addEventListener("click", async () => {
+  if (!confirm("حذف هذا البحث وكل مخرجاته نهائياً؟ لا يمكن التراجع.")) return;
+  delBtn.disabled = true;
+  const { data: { session } } = await sb.auth.getSession();
+  await sb.storage.from("papers").remove([`${session.user.id}/${id}.pdf`]);
+  const { error } = await sb.from("research").delete().eq("id", id);
+  if (error) { delBtn.disabled = false; return alert("تعذّر الحذف: " + error.message); }
+  location.href = "dashboard.html";
+});
+
+(async () => {
+  await renderChrome("dashboard");
+  await requireAuth();
+  if (!id) { location.replace("dashboard.html"); return; }
+  load();
+})();
+</script>
+</body>
+</html>

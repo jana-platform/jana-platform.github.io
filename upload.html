@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>رفع بحث — جَنى</title>
+<meta name="description" content="جَنى — منصة ذكية تحوّل أبحاث الدراسات العليا إلى مخرجات تطبيقية تخدم المجتمع.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container narrow">
+    <div class="page-head"><h1>رفع بحث جديد</h1></div>
+    <div id="msg" class="hidden"></div>
+
+    <form id="form">
+      <div class="card">
+        <h3>١. ملف البحث</h3>
+        <label class="file-drop" id="drop">
+          <input type="file" id="file" accept="application/pdf,.pdf">
+          <div style="font-size:2rem">📎</div>
+          <b id="fileName">اضغط لاختيار ملف PDF</b>
+          <div class="hint">الحد الأقصى 20 ميجابايت · عربي أو إنجليزي</div>
+        </label>
+      </div>
+
+      <div class="card">
+        <h3>٢. بيانات البحث والتحقق من الملكية</h3>
+        <div class="form-row">
+          <label class="lbl" for="doi">رقم DOI <span class="muted small">(اختياري، للأبحاث المنشورة)</span></label>
+          <div style="display:flex;gap:8px">
+            <input id="doi" type="text" dir="ltr" placeholder="10.xxxx/xxxxx">
+            <button type="button" class="btn ghost sm" id="checkDoi" style="flex-shrink:0">تحقّق</button>
+          </div>
+          <div class="hint">إذا كان بحثك منشوراً، نتحقق من وجود اسمك ضمن المؤلفين. الرسائل غير المنشورة يكفيها الإقرار.</div>
+          <div id="doiBox" class="hidden" style="margin-top:12px"></div>
+        </div>
+        <div class="form-row">
+          <label class="lbl" for="title">عنوان البحث</label>
+          <input id="title" type="text" required>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>٣. اختر المخرجات</h3>
+        <p class="muted small">تقدر تختار أكثر من مخرج في نفس المرة.</p>
+        <div id="types"></div>
+      </div>
+
+      <div class="card">
+        <h3>٤. الإقرار</h3>
+        <label class="check"><input type="checkbox" id="ack" required>
+          <span>أُقرّ بأنني مؤلف هذا البحث أو أحد مؤلفيه، ولدي الحق في معالجته ونشر مخرجاته.</span></label>
+        <label class="check"><input type="checkbox" id="aiAck" required>
+          <span>أعلم أن البحث سيُعالَج بالذكاء الاصطناعي عبر خدمة Gemini من Google، وأنه في النسخة التجريبية المجانية قد تستخدم Google المحتوى لتحسين خدماتها، وأن ملف البحث سيُحذف من جنى فور انتهاء المعالجة.
+          <small><a href="privacy.html" target="_blank">التفاصيل في صفحة الخصوصية</a></small></span></label>
+      </div>
+
+      <div style="margin-top:20px;text-align:center">
+        <button class="btn green" type="submit" id="submitBtn" style="min-width:240px">حوّل بحثي ✨</button>
+      </div>
+    </form>
+
+    <div id="working" class="card empty hidden">
+      <div class="spinner"></div>
+      <h3 id="workTitle">جارٍ رفع البحث…</h3>
+      <p class="muted">قد تستغرق المعالجة دقيقة أو دقيقتين. لا تغلق الصفحة.</p>
+    </div>
+  </div>
+</main>
+<script>
+let session, profile, doiState = { verified: false, author: null };
+
+types.innerHTML = Object.entries(OUTPUT_TYPES).map(([k, t]) => `
+  <label class="check"><input type="checkbox" name="type" value="${k}" ${k === "policy_brief" ? "checked" : ""}>
+  <span><b>${t.icon} ${t.label}</b><small>${t.desc}</small></span></label>`).join("");
+
+file.addEventListener("change", () => {
+  const f = file.files[0];
+  fileName.textContent = f ? `${f.name} (${(f.size / 1048576).toFixed(1)} ميجابايت)` : "اضغط لاختيار ملف PDF";
+});
+
+(async () => {
+  await renderChrome("upload");
+  session = await requireAuth();
+  ({ data: profile } = await sb.from("profiles").select("*").eq("id", session.user.id).maybeSingle());
+})();
+
+// تبسيط الأسماء للمقارنة
+const norm = (s) => (s || "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z؀-ۿ ]/g, " ").replace(/\s+/g, " ").trim();
+function nameMatches(author, fullName) {
+  const a = norm(author), parts = norm(fullName).split(" ").filter((p) => p.length > 1);
+  return parts.length > 0 && parts.filter((p) => a.includes(p)).length >= Math.min(2, parts.length);
+}
+
+checkDoi.addEventListener("click", async () => {
+  const raw = doi.value.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").replace(/^doi:\s*/i, "");
+  doiState = { verified: false, author: null };
+  if (!raw) return;
+  doiBox.classList.remove("hidden");
+  doiBox.innerHTML = `<div class="alert info">جارٍ البحث عن الـ DOI…</div>`;
+  try {
+    const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(raw)}`);
+    if (!res.ok) throw new Error("not found");
+    const w = (await res.json()).message;
+    const authors = (w.author || []).map((a) => [a.given, a.family].filter(Boolean).join(" ") || a.name).filter(Boolean);
+    if (!title.value && w.title?.[0]) title.value = w.title[0];
+    doi.value = raw;
+    if (!authors.length) {
+      doiBox.innerHTML = `<div class="alert warn">وجدنا البحث لكن بدون قائمة مؤلفين. يكفي الإقرار بالملكية.</div>`;
+      return;
+    }
+    const auto = authors.findIndex((a) => nameMatches(a, profile?.full_name));
+    doiBox.innerHTML = `
+      <div class="alert ok">وجدنا البحث: <b>${esc(w.title?.[0] || "")}</b></div>
+      <p class="small"><b>اختر اسمك من قائمة المؤلفين:</b></p>
+      ${authors.map((a, i) => `<label class="check"><input type="radio" name="author" value="${esc(a)}" ${i === auto ? "checked" : ""}><span>${esc(a)}</span></label>`).join("")}
+      <label class="check"><input type="radio" name="author" value=""><span>اسمي غير موجود في القائمة</span></label>`;
+  } catch {
+    doiBox.innerHTML = `<div class="alert warn">ما لقينا هذا الـ DOI. تأكد منه، أو اتركه فارغاً واعتمد على الإقرار.</div>`;
+  }
+});
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  msg.classList.add("hidden");
+  const f = file.files[0];
+  const chosen = [...document.querySelectorAll('input[name=type]:checked')].map((i) => i.value);
+  if (!f) return showAlert(msg, "err", "اختر ملف البحث (PDF) أولاً.");
+  if (f.type && f.type !== "application/pdf") return showAlert(msg, "err", "الملف لازم يكون بصيغة PDF.");
+  if (f.size > 20 * 1048576) return showAlert(msg, "err", "حجم الملف أكبر من 20 ميجابايت.");
+  if (!chosen.length) return showAlert(msg, "err", "اختر مخرجاً واحداً على الأقل.");
+
+  const picked = document.querySelector('input[name=author]:checked')?.value || null;
+  const doiVal = doi.value.trim() || null;
+
+  form.classList.add("hidden");
+  working.classList.remove("hidden");
+  scrollTo(0, 0);
+
+  // ١) إنشاء سجل البحث
+  const { data: r, error: insErr } = await sb.from("research").insert({
+    title: title.value.trim(),
+    doi: doiVal,
+    doi_author: picked,
+    verification: doiVal && picked ? "doi_matched" : "self_declared",
+    ownership_ack: true,
+    requested_types: chosen,
+  }).select().single();
+  if (insErr) return fail("تعذّر حفظ البحث: " + insErr.message);
+
+  // ٢) رفع الملف للتخزين المؤقت الخاص
+  const { error: upErr } = await sb.storage.from("papers").upload(`${session.user.id}/${r.id}.pdf`, f, { contentType: "application/pdf" });
+  if (upErr) { await sb.from("research").delete().eq("id", r.id); return fail("تعذّر رفع الملف: " + upErr.message); }
+
+  // ٣) التحويل بالذكاء الاصطناعي
+  workTitle.textContent = "جارٍ قراءة البحث وتوليد المخرجات… ✨";
+  await sb.functions.invoke("generate", { body: { research_id: r.id } }).catch(() => {});
+  // صفحة البحث تعرض النتيجة (أو سبب التعذّر إن وُجد)
+  location.href = `research.html?id=${r.id}`;
+});
+
+function fail(text) {
+  working.classList.add("hidden");
+  form.classList.remove("hidden");
+  showAlert(msg, "err", esc(text));
+}
+</script>
+</body>
+</html>

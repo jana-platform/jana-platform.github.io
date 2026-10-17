@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الدخول والتسجيل — جَنى</title>
+<meta name="description" content="جَنى — منصة ذكية تحوّل أبحاث الدراسات العليا إلى مخرجات تطبيقية تخدم المجتمع.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container narrow" style="max-width:520px">
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button type="button" data-tab="login" class="on">تسجيل الدخول</button>
+        <button type="button" data-tab="signup">حساب جديد</button>
+      </div>
+      <div id="msg" class="hidden"></div>
+
+      <!-- الدخول -->
+      <form id="loginForm">
+        <div class="form-row"><label class="lbl" for="lEmail">الإيميل</label><input id="lEmail" type="email" dir="ltr" required autocomplete="email"></div>
+        <div class="form-row"><label class="lbl" for="lPass">كلمة المرور</label><input id="lPass" type="password" dir="ltr" required autocomplete="current-password"></div>
+        <button class="btn" style="width:100%" type="submit">دخول</button>
+        <p class="small" style="text-align:center;margin-top:14px"><a href="#" id="forgotLink">نسيت كلمة المرور؟</a></p>
+      </form>
+
+      <!-- التسجيل -->
+      <form id="signupForm" class="hidden">
+        <div class="form-row"><label class="lbl" for="sName">الاسم الكامل</label><input id="sName" type="text" required autocomplete="name"><div class="hint">اكتبه كما يظهر في أبحاثك المنشورة، يساعدنا في التحقق من ملكية البحث.</div></div>
+        <div class="form-row"><label class="lbl" for="sEmail">الإيميل</label><input id="sEmail" type="email" dir="ltr" required autocomplete="email"></div>
+        <div class="form-row"><label class="lbl" for="sPass">كلمة المرور</label><input id="sPass" type="password" dir="ltr" required minlength="6" autocomplete="new-password"><div class="hint">6 أحرف أو أكثر.</div></div>
+        <div class="form-row"><label class="lbl" for="sUni">الجامعة</label><input id="sUni" type="text" list="unis" required><datalist id="unis"></datalist></div>
+        <div class="form-row"><label class="lbl" for="sSpec">التخصص</label><input id="sSpec" type="text" required placeholder="مثال: القيادة والسياسات التربوية"></div>
+        <label class="check"><input type="checkbox" id="sAgree" required><span>قرأت <a href="privacy.html" target="_blank">سياسة الخصوصية</a> وأوافق عليها، وأعلم أن المنصة تجريبية.</span></label>
+        <button class="btn" style="width:100%;margin-top:18px" type="submit">إنشاء الحساب</button>
+      </form>
+
+      <!-- كلمة مرور جديدة -->
+      <form id="resetForm" class="hidden">
+        <h3>تعيين كلمة مرور جديدة</h3>
+        <div class="form-row"><label class="lbl" for="rPass">كلمة المرور الجديدة</label><input id="rPass" type="password" dir="ltr" minlength="6" required autocomplete="new-password"></div>
+        <button class="btn" style="width:100%" type="submit">حفظ</button>
+      </form>
+    </div>
+  </div>
+</main>
+<script>
+  const UNIS = ["جامعة الملك عبدالعزيز","جامعة الملك سعود","جامعة الملك فهد للبترول والمعادن","جامعة أم القرى","جامعة الإمام محمد بن سعود الإسلامية","جامعة الأميرة نورة بنت عبدالرحمن","جامعة الملك فيصل","جامعة الملك خالد","جامعة القصيم","جامعة طيبة","جامعة الطائف","جامعة جدة","جامعة الإمام عبدالرحمن بن فيصل","الجامعة الإسلامية بالمدينة المنورة","جامعة جازان","جامعة حائل","جامعة الجوف","جامعة تبوك","جامعة الباحة","جامعة نجران","جامعة الحدود الشمالية","جامعة الأمير سطام بن عبدالعزيز","جامعة شقراء","جامعة المجمعة","جامعة بيشة","جامعة حفر الباطن","جامعة الملك سعود بن عبدالعزيز للعلوم الصحية","جامعة الملك عبدالله للعلوم والتقنية (كاوست)","الجامعة السعودية الإلكترونية","جامعة الأمير سلطان","جامعة الفيصل","جامعة عفت","جامعة دار الحكمة","جامعة الأعمال والتكنولوجيا","جامعة اليمامة"];
+  document.getElementById("unis").innerHTML = UNIS.map((u) => `<option value="${u}">`).join("");
+
+  const msg = document.getElementById("msg");
+  const forms = { login: loginForm, signup: signupForm, reset: resetForm };
+  function tab(name) {
+    msg.classList.add("hidden");
+    Object.entries(forms).forEach(([k, f]) => f.classList.toggle("hidden", k !== name));
+    document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  }
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => tab(b.dataset.tab)));
+  if (location.hash === "#signup") tab("signup");
+
+  renderChrome("auth").then((session) => {
+    if (session && !location.hash.includes("type=recovery")) location.replace("dashboard.html");
+  });
+
+  // عند الضغط على رابط استعادة كلمة المرور من الإيميل
+  sb.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") { tab("reset"); document.querySelector(".tabs").classList.add("hidden"); }
+  });
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true;
+    const { error } = await sb.auth.signInWithPassword({ email: lEmail.value.trim(), password: lPass.value });
+    btn.disabled = false;
+    if (error) return showAlert(msg, "err", arError(error));
+    location.href = "dashboard.html";
+  });
+
+  signupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true;
+    const { data, error } = await sb.auth.signUp({
+      email: sEmail.value.trim(),
+      password: sPass.value,
+      options: {
+        emailRedirectTo: new URL("dashboard.html", location.href).href,
+        data: { full_name: sName.value.trim(), university: sUni.value.trim(), specialization: sSpec.value.trim() },
+      },
+    });
+    btn.disabled = false;
+    if (error) return showAlert(msg, "err", arError(error));
+    if (data.session) return (location.href = "dashboard.html");
+    signupForm.reset();
+    showAlert(msg, "ok", "تم إنشاء حسابك ✅ أرسلنا لك رسالة تأكيد على الإيميل، افتحها واضغط الرابط ثم سجّل الدخول. (تأكد من مجلد الرسائل غير المرغوبة)");
+  });
+
+  forgotLink.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const email = lEmail.value.trim();
+    if (!email) return showAlert(msg, "warn", "اكتب إيميلك في الخانة أولاً ثم اضغط «نسيت كلمة المرور».");
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: new URL("auth.html", location.href).href });
+    if (error) return showAlert(msg, "err", arError(error));
+    showAlert(msg, "ok", "أرسلنا رابط إعادة تعيين كلمة المرور إلى إيميلك.");
+  });
+
+  resetForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { error } = await sb.auth.updateUser({ password: rPass.value });
+    if (error) return showAlert(msg, "err", arError(error));
+    showAlert(msg, "ok", "تم تغيير كلمة المرور ✅");
+    setTimeout(() => (location.href = "dashboard.html"), 1200);
+  });
+</script>
+</body>
+</html>
