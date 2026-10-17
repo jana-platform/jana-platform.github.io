@@ -1,4 +1,19 @@
 // ===== جنى: الإعدادات والأدوات المشتركة بين كل الصفحات =====
+
+// الوضع الليلي: يُطبّق قبل ظهور الصفحة لتجنّب الوميض
+(function () {
+  let saved = null;
+  try { saved = localStorage.getItem("jana-theme"); } catch {}
+  const dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+})();
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("jana-theme", next); } catch {}
+  const b = document.getElementById("themeBtn");
+  if (b) b.textContent = next === "dark" ? "☀️" : "🌙";
+}
 // هذه المفاتيح "عامة" ومصممة لتكون في المتصفح؛ الحماية الفعلية عبر صلاحيات قاعدة البيانات.
 const JANA_CONFIG = {
   supabaseUrl: "https://zzaehqhxzgnxuhjmdxoe.supabase.co",
@@ -11,7 +26,11 @@ const OUTPUT_TYPES = {
   policy_brief: { label: "موجز سياسات", icon: "📄", desc: "ورقة مختصرة لصناع القرار بالنتائج والتوصيات" },
   poster: { label: "ملصق علمي", icon: "🖼️", desc: "ملخص بصري للبحث جاهز للعرض والطباعة" },
   social: { label: "محتوى سوشيال ميديا", icon: "💬", desc: "سلسلة X ومنشور LinkedIn ونص إنستقرام" },
+  training_kit: { label: "حقيبة تدريبية", icon: "🎓", desc: "برنامج تدريبي بجلسات وأنشطة موجّه لفئة محددة" },
 };
+
+const SITE_URL = "jana-platform.github.io";
+const SIGN_TEXT = "أُعدّ عبر منصة جَنى لتثمير البحث العلمي";
 
 const SECTORS = {
   education: "التعليم", health: "الصحة", nonprofit: "القطاع غير الربحي", government: "القطاع الحكومي",
@@ -28,7 +47,11 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-const LOGO = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 44V22" stroke="#3E7F5A" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M24 30c-8 0-13-5-14-12 7 0 13 4 14 12z" fill="#3E7F5A"/><path d="M24 26c6 0 10-4 11-10-6 0-10 3-11 10z" fill="#7FB394"/><circle cx="24" cy="12" r="8" fill="#7059B3"/><circle cx="21" cy="9.5" r="2.2" fill="#C9BCEB"/></svg>`;
+// الشعار: كتاب مفتوح تطلع منه نخلة وتحتها تمر (جَنى)
+const LOGO = `<img src="assets/logo.svg" alt="" aria-hidden="true">`;
+
+// توقيع جنى الذي يظهر أسفل كل مخرج (وفي ملف PDF)
+const SIGN = `<div class="jana-sign"><img src="assets/logo.svg" alt=""><div><b>${SIGN_TEXT}</b><span dir="ltr">${SITE_URL}</span></div></div>`;
 
 function fmtDate(d) {
   try { return new Date(d).toLocaleDateString("ar-SA-u-ca-gregory", { year: "numeric", month: "long", day: "numeric" }); }
@@ -38,14 +61,18 @@ function fmtDate(d) {
 // رسم الهيدر والفوتر وشريط التجربة
 async function renderChrome(active) {
   const { data: { session } } = await sb.auth.getSession();
+  const dir = `<a href="directory.html" class="${active === "directory" ? "active" : ""}">دليل الجهات</a>`;
+  const themeBtn = `<button class="linklike theme-btn" id="themeBtn" title="الوضع الليلي / النهاري" aria-label="تبديل الوضع الليلي">${document.documentElement.dataset.theme === "dark" ? "☀️" : "🌙"}</button>`;
   const links = session
     ? `<a href="dashboard.html" class="${active === "dashboard" ? "active" : ""}">أبحاثي</a>
        <a href="upload.html" class="${active === "upload" ? "active" : ""}">رفع بحث</a>
+       ${dir}
        <a href="privacy.html" class="${active === "privacy" ? "active" : ""}">الخصوصية</a>
-       <button class="linklike" id="logoutBtn">خروج</button>`
+       <button class="linklike" id="logoutBtn">خروج</button>${themeBtn}`
     : `<a href="index.html" class="${active === "home" ? "active" : ""}">الرئيسية</a>
+       ${dir}
        <a href="privacy.html" class="${active === "privacy" ? "active" : ""}">الخصوصية</a>
-       <a href="auth.html" class="${active === "auth" ? "active" : ""}">دخول / تسجيل</a>`;
+       <a href="auth.html" class="${active === "auth" ? "active" : ""}">دخول / تسجيل</a>${themeBtn}`;
 
   document.body.insertAdjacentHTML("afterbegin", `
     <div class="beta-bar">🧪 جنى في <b>نسخة تجريبية</b> حالياً، والحماية والمزايا ستتطور تدريجياً. <a href="privacy.html">اعرف أكثر</a></div>
@@ -60,6 +87,7 @@ async function renderChrome(active) {
       <span><a href="privacy.html">الخصوصية</a></span>
     </div></footer>`);
 
+  document.getElementById("themeBtn").addEventListener("click", toggleTheme);
   document.getElementById("logoutBtn")?.addEventListener("click", async () => {
     await sb.auth.signOut();
     location.href = "index.html";
@@ -90,3 +118,28 @@ function arError(err) {
   if (m.includes("rate limit")) return "محاولات كثيرة، انتظر قليلاً ثم حاول مرة أخرى.";
   return err?.message || "حدث خطأ غير متوقع.";
 }
+
+// ===== دليل الجهات =====
+// تسجيل ضغطة (بدون أي بيانات عن الشخص) لإحصاءات لوحة الإدارة
+function logOrgClick(orgId, kind) {
+  sb.from("org_clicks").insert({ org_id: orgId, kind }).then(() => {}, () => {});
+}
+
+function orgCard(o) {
+  const host = (() => { try { return new URL(o.website).hostname.replace(/^www\./, ""); } catch { return o.website; } })();
+  return `<article class="card org-card">
+    <h3><a href="org.html?id=${o.id}">${esc(o.name)}</a></h3>
+    <p class="muted small">${esc(o.description)}</p>
+    <div class="org-tags">${(o.sectors || []).map((s) => `<span class="chip">${SECTORS[s] || esc(s)}</span>`).join("")}</div>
+    <div class="org-foot">
+      <span class="small muted">📍 ${esc(o.city)}</span>
+      <a class="btn ghost sm" href="${esc(o.website)}" target="_blank" rel="noopener" data-org="${o.id}">🔗 ${esc(host)}</a>
+    </div>
+  </article>`;
+}
+
+// أي رابط موقع جهة يُحسب كضغطة
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[data-org]");
+  if (a) logOrgClick(a.dataset.org, "website");
+});

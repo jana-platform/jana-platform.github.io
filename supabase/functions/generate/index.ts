@@ -12,7 +12,7 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const ALLOWED = ["policy_brief", "poster", "social"] as const;
+const ALLOWED = ["policy_brief", "poster", "social", "training_kit"] as const;
 type OutType = typeof ALLOWED[number];
 
 const S = (description: string) => ({ type: "STRING", description });
@@ -63,6 +63,36 @@ const SCHEMAS: Record<OutType, unknown> = {
     },
     required: ["x_thread", "linkedin_post", "instagram_caption", "hashtags"],
   },
+  training_kit: {
+    type: "OBJECT",
+    properties: {
+      title: S("عنوان البرنامج التدريبي"),
+      target_group: S("الفئة المستهدفة بالتدريب"),
+      rationale: S("مبررات البرنامج: لماذا تحتاج هذه الفئة هذا التدريب بناءً على نتائج البحث"),
+      general_objective: S("الهدف العام للبرنامج"),
+      learning_outcomes: A("نواتج التعلم المتوقعة: يكون المتدرب قادراً على... (4-6)"),
+      duration: S("المدة الإجمالية المقترحة، مثل: يومان تدريبيان بواقع 4 ساعات يومياً"),
+      sessions: {
+        type: "ARRAY",
+        description: "الجلسات التدريبية (3-6 جلسات)",
+        items: {
+          type: "OBJECT",
+          properties: {
+            title: S("عنوان الجلسة"),
+            duration: S("مدة الجلسة"),
+            objectives: A("أهداف الجلسة"),
+            content: A("المحتوى العلمي الرئيسي للجلسة مستنداً إلى البحث"),
+            activities: A("أنشطة تدريبية تفاعلية (مثل: نقاش، دراسة حالة، لعب أدوار، ورشة عمل)"),
+          },
+          required: ["title", "duration", "objectives", "content", "activities"],
+        },
+      },
+      evaluation: A("أساليب تقييم أثر التدريب"),
+      materials: A("المواد والأدوات المطلوبة للتدريب"),
+      trainer_notes: S("إرشادات للمدرب لتطبيق البرنامج بفاعلية"),
+    },
+    required: ["title", "target_group", "rationale", "general_objective", "learning_outcomes", "duration", "sessions", "evaluation", "materials", "trainer_notes"],
+  },
 };
 
 function toBase64(bytes: Uint8Array): string {
@@ -74,7 +104,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-async function callGemini(pdfB64: string, types: OutType[]) {
+async function callGemini(pdfB64: string, types: OutType[], audience: string | null) {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new Error("مفتاح Gemini غير مضاف بعد");
 
@@ -89,7 +119,9 @@ async function callGemini(pdfB64: string, types: OutType[]) {
 - اكتب بالعربية الفصحى الواضحة حتى لو كان البحث بالإنجليزية.
 - التزم بما ورد في البحث فقط؛ لا تخترع أرقاماً أو نتائج أو أسماء غير موجودة فيه.
 - خاطب غير المتخصصين بلغة مبسطة دون الإخلال بالدقة العلمية.
-- لا تذكر اسم الباحث أو بياناته الشخصية.`;
+- لا تذكر اسم الباحث أو بياناته الشخصية.${types.includes("training_kit") ? (audience
+    ? `\n- الحقيبة التدريبية موجّهة تحديداً إلى هذه الفئة: «${audience.slice(0, 200)}»؛ صمّم المحتوى والأنشطة بما يناسبها.`
+    : `\n- حدّد أنسب فئة مستهدفة للحقيبة التدريبية بناءً على نتائج البحث وتوصياته.`) : ""}`;
 
   const body = {
     contents: [{ role: "user", parts: [{ inline_data: { mime_type: "application/pdf", data: pdfB64 } }, { text: prompt }] }],
@@ -153,7 +185,7 @@ Deno.serve(async (req) => {
     if (dlErr || !file) throw new Error("تعذر قراءة ملف البحث");
     const b64 = toBase64(new Uint8Array(await file.arrayBuffer()));
 
-    const result = await callGemini(b64, types);
+    const result = await callGemini(b64, types, research.target_audience ?? null);
     const rows = types.filter((t) => result[t]).map((t) => ({
       research_id: research.id,
       user_id: user.id,

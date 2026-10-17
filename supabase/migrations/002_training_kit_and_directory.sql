@@ -1,0 +1,3 @@
+-- مطبّق على مشروع Supabase (jana). نسخة مرجعية للتوثيق.
+-- إضافة نوع المخرج training_kit + عمود research.target_audience
+-- جدول organizations (قراءة عامة) + org_clicks (تسجيل ضغطات بدون هوية) + 60 جهة سعودية

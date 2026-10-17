@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جهة — دليل جَنى</title>
+<meta name="description" content="جَنى — منصة ذكية تحوّل أبحاث الدراسات العليا إلى مخرجات تطبيقية تخدم المجتمع.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container narrow">
+    <a href="directory.html" class="small">→ دليل الجهات</a>
+    <div id="box" style="margin-top:12px"><div class="card empty"><div class="spinner"></div>جارٍ التحميل…</div></div>
+  </div>
+</main>
+<script>
+(async () => {
+  await renderChrome("directory");
+  const id = new URLSearchParams(location.search).get("id");
+  const { data: o } = id ? await sb.from("organizations").select("*").eq("id", id).maybeSingle() : { data: null };
+  if (!o) { box.innerHTML = `<div class="alert err">الجهة غير موجودة.</div>`; return; }
+  document.title = `${o.name} — دليل جَنى`;
+  logOrgClick(o.id, "view");
+  box.innerHTML = `
+    <article class="doc">
+      <div class="doc-kicker">جهة مستفيدة</div>
+      <h2>${esc(o.name)}</h2>
+      <p>${esc(o.description)}</p>
+      <div class="meta-grid">
+        <div><b>المقر</b>${esc(o.city)}</div>
+        <div><b>الموقع الرسمي</b><span dir="ltr">${esc(o.website.replace(/^https?:\/\//, ""))}</span></div>
+      </div>
+      <h3>القطاعات</h3>
+      <div class="org-tags">${o.sectors.map((s) => `<a class="chip" href="directory.html?sector=${s}">${SECTORS[s] || esc(s)}</a>`).join("")}</div>
+      <div class="alert info" style="margin-top:18px">💡 <b>كيف تتواصل مع الجهة؟</b> افتح موقعها الرسمي وابحث عن «تواصل معنا» أو «الشراكات» أو «المسؤولية المجتمعية»، وأرفق موجز السياسات أو الحقيبة التدريبية التي أنتجتها من جنى.</div>
+      <a class="btn green" href="${esc(o.website)}" target="_blank" rel="noopener" data-org="${o.id}">🔗 زيارة الموقع الرسمي</a>
+    </article>`;
+})();
+</script>
+</body>
+</html>

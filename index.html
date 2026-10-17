@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="assets/app.js"></script>
@@ -20,17 +21,18 @@
       <div>
         <p class="muted" style="font-weight:600;color:var(--green-600)">من الرف… إلى الأثر</p>
         <h1>حوّل بحثك العلمي إلى أثرٍ يخدم المجتمع</h1>
-        <p class="lead">كثير من أبحاث الدراسات العليا تبقى حبيسة الرفوف. جَنى منصة ذكية ترفع لها بحثك، فتحوّله إلى مخرجات تطبيقية جاهزة: موجز سياسات، وملصق علمي، ومحتوى للتواصل الاجتماعي.</p>
+        <p class="lead">كثير من أبحاث الدراسات العليا تبقى حبيسة الرفوف. جَنى منصة ذكية ترفع لها بحثك، فتحوّله إلى مخرجات تطبيقية جاهزة: موجز سياسات، وملصق علمي، وحقيبة تدريبية، ومحتوى للتواصل الاجتماعي.</p>
         <div class="actions">
           <a class="btn" href="auth.html#signup" id="ctaStart">ابدأ الآن مجاناً</a>
           <a class="btn ghost" href="#how">كيف تعمل جنى؟</a>
         </div>
       </div>
       <div class="hero-art" aria-hidden="true">
+        <img class="hero-logo" src="assets/logo.svg" alt="">
         <div class="flow-step"><div class="flow-dot l">١</div><div><b>ارفع بحثك</b><div class="muted small">ملف PDF بالعربية أو الإنجليزية</div></div></div>
         <div class="flow-step"><div class="flow-dot l">٢</div><div><b>اختر المخرجات</b><div class="muted small">واحد أو أكثر في نفس المرة</div></div></div>
         <div class="flow-step"><div class="flow-dot g">٣</div><div><b>استلم منتجك</b><div class="muted small">عاينه، انسخه، أو حمّله PDF</div></div></div>
-        <div class="flow-step"><div class="flow-dot g">٤</div><div><b>تواصل مع المستفيدين</b><div class="muted small">جهات مقترحة تناسب بحثك <span class="soon">قريباً</span></div></div></div>
+        <div class="flow-step"><div class="flow-dot g">٤</div><div><b>تواصل مع المستفيدين</b><div class="muted small">جهات سعودية مقترحة تناسب بحثك</div></div></div>
       </div>
     </div>
   </section>
@@ -39,14 +41,24 @@
     <div class="container">
       <div class="section-title">
         <h2>المخرجات المتاحة</h2>
-        <p>في النسخة التجريبية ثلاثة مخرجات، والقادم أكثر.</p>
+        <p>اختر منتجاً واحداً أو أكثر، أو الأربعة في نفس المرة.</p>
       </div>
-      <div class="grid cols-3">
+      <div class="grid cols-4">
         <div class="card"><div class="feature-icon l">📄</div><h3>موجز سياسات</h3><p class="muted">ورقة مختصرة لصنّاع القرار: المشكلة، أهم النتائج، وتوصيات عملية مع الجهة المعنية بكل توصية.</p></div>
         <div class="card"><div class="feature-icon g">🖼️</div><h3>ملصق علمي</h3><p class="muted">ملخص بصري منظّم لأهداف البحث ومنهجيته ونتائجه، جاهز للعرض في المؤتمرات والطباعة.</p></div>
         <div class="card"><div class="feature-icon l">💬</div><h3>محتوى سوشيال ميديا</h3><p class="muted">سلسلة تغريدات، ومنشور LinkedIn، ونص إنستقرام بلغة مبسطة تصل للمجتمع.</p></div>
+        <div class="card"><div class="feature-icon g">🎓</div><h3>حقيبة تدريبية</h3><p class="muted">برنامج تدريبي متكامل بجلسات وأنشطة وأساليب تقييم، موجّه للفئة التي تحددها.</p></div>
       </div>
-      <p class="muted small" style="text-align:center;margin-top:20px">قريباً: حقيبة تدريبية · دورة · كتاب مبسّط · كتيّب · مطوية · مبادرة مجتمعية</p>
+      <p class="muted small" style="text-align:center;margin-top:20px">قريباً: دورة · كتاب مبسّط · كتيّب · مطوية · مبادرة مجتمعية</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+        <div><h2 style="margin:0">دليل الجهات المستفيدة</h2><p class="muted" style="margin:0">أكثر من 60 جهة سعودية حكومية وغير ربحية، مصنّفة حسب القطاع، مع روابط مواقعها الرسمية.</p></div>
+        <a class="btn green" href="directory.html">تصفّح الدليل</a>
+      </div>
     </div>
   </section>
 
@@ -59,7 +71,7 @@
           <li>يُعالَج البحث بالذكاء الاصطناعي، ثم <b>يُحذف ملفه تلقائياً</b> بعد إنتاج المخرجات.</li>
           <li>تقدر تحذف أبحاثك أو حسابك كاملاً نهائياً في أي وقت.</li>
         </ul>
-        <p style="margin:16px 0 0"><a href="privacy.html" style="color:#DDD4F2;text-decoration:underline">اقرأ سياسة الخصوصية كاملة</a></p>
+        <p style="margin:16px 0 0"><a href="privacy.html">اقرأ سياسة الخصوصية كاملة</a></p>
       </div>
     </div>
   </section>

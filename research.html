@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="assets/app.js"></script>
@@ -34,7 +35,7 @@
         <button class="btn ghost sm" id="pdfBtn">⬇️ تحميل PDF</button>
       </div>
       <div id="panels"></div>
-      <div class="card sectors no-print" id="sectorsBox"></div>
+      <div class="card suggest-box no-print" id="sectorsBox"></div>
     </div>
   </div>
 </main>
@@ -57,6 +58,7 @@ const RENDER = {
       ${(c.recommendations || []).map((r, i) => `<div class="rec"><b>${i + 1}.</b> ${esc(r.text)}<br><span class="target">الجهة المعنية: ${esc(r.target)}</span></div>`).join("")}
       <h3>الجمهور المستهدف</h3><p>${esc(c.target_audience)}</p>
       <h3>الخاتمة</h3><p>${esc(c.conclusion)}</p>
+      ${SIGN}
     </article>`,
   poster: (c) => `
     <article class="poster">
@@ -69,10 +71,38 @@ const RENDER = {
         <div class="poster-box g wide"><h3>الخلاصة</h3><p style="margin:0">${esc(c.conclusion)}</p></div>
       </div>
       <div class="poster-foot">${(c.keywords || []).map((k) => `<span class="chip l">${esc(k)}</span>`).join("")}</div>
+      ${SIGN}
+    </article>`,
+  training_kit: (c) => `
+    <article class="doc">
+      <div class="doc-kicker">حقيبة تدريبية</div>
+      <h2>${esc(c.title)}</h2>
+      <div class="meta-grid">
+        <div><b>الفئة المستهدفة</b>${esc(c.target_group)}</div>
+        <div><b>المدة المقترحة</b>${esc(c.duration)}</div>
+        <div><b>عدد الجلسات</b>${(c.sessions || []).length}</div>
+      </div>
+      <div class="summary"><b>الهدف العام:</b> ${esc(c.general_objective)}</div>
+      <h3>مبررات البرنامج</h3><p>${esc(c.rationale)}</p>
+      <h3>نواتج التعلم</h3>${list(c.learning_outcomes)}
+      <h3>الجلسات التدريبية</h3>
+      ${(c.sessions || []).map((x, i) => `
+        <div class="session">
+          <div class="session-head"><b>الجلسة ${i + 1}: ${esc(x.title)}</b><span class="small muted">⏱ ${esc(x.duration)}</span></div>
+          <div class="session-body">
+            <div><h4>الأهداف</h4>${list(x.objectives)}</div>
+            <div><h4>المحتوى</h4>${list(x.content)}</div>
+            <div><h4>الأنشطة</h4>${list(x.activities)}</div>
+          </div>
+        </div>`).join("")}
+      <h3>أساليب التقييم</h3>${list(c.evaluation)}
+      <h3>المواد والأدوات</h3>${list(c.materials)}
+      <h3>إرشادات للمدرب</h3><p>${esc(c.trainer_notes)}</p>
+      ${SIGN}
     </article>`,
   social: (c) => {
     const tags = (c.hashtags || []).map((h) => "#" + String(h).replace(/^#/, "").replace(/\s+/g, "_")).join(" ");
-    return `
+    return `<div class="social-wrap">
     <div class="social-card"><header><b>𝕏 سلسلة تغريدات</b><button class="btn ghost sm" data-copy="x">نسخ</button></header>
       ${(c.x_thread || []).map((t, i) => `<div class="tweet"><span class="n">${i + 1}/${c.x_thread.length}</span>${esc(t)}</div>`).join("")}</div>
     <div class="social-card"><header><b>💼 منشور LinkedIn</b><button class="btn ghost sm" data-copy="li">نسخ</button></header>
@@ -80,7 +110,8 @@ const RENDER = {
     <div class="social-card"><header><b>📸 نص إنستقرام</b><button class="btn ghost sm" data-copy="ig">نسخ</button></header>
       <div class="pre">${esc(c.instagram_caption)}</div></div>
     <div class="social-card"><header><b># الوسوم</b><button class="btn ghost sm" data-copy="tags">نسخ</button></header>
-      <div dir="auto">${esc(tags)}</div></div>`;
+      <div dir="auto">${esc(tags)}</div></div>
+    ${SIGN}</div>`;
   },
 };
 
@@ -91,6 +122,9 @@ const PLAIN = {
   poster: (c) => `${c.title}\n\nالمقدمة:\n${c.introduction}\n\nالأهداف:\n${bullets(c.objectives)}\n\nالمنهجية:\n${c.methodology}\n\nأبرز النتائج:\n${bullets(c.results)}\n\nالخلاصة:\n${c.conclusion}\n\nكلمات مفتاحية: ${(c.keywords || []).join("، ")}`,
   social: (c) => `سلسلة X:\n${(c.x_thread || []).map((t, i) => `${i + 1}/ ${t}`).join("\n\n")}\n\nLinkedIn:\n${c.linkedin_post}\n\nإنستقرام:\n${c.instagram_caption}\n\n${(c.hashtags || []).map((h) => "#" + h).join(" ")}`,
 };
+PLAIN.training_kit = (c) => `${c.title}\n\nالفئة المستهدفة: ${c.target_group}\nالمدة المقترحة: ${c.duration}\n\nالهدف العام:\n${c.general_objective}\n\nمبررات البرنامج:\n${c.rationale}\n\nنواتج التعلم:\n${bullets(c.learning_outcomes)}\n\nالجلسات التدريبية:\n${(c.sessions || []).map((x, i) => `\nالجلسة ${i + 1}: ${x.title} (${x.duration})\nالأهداف:\n${bullets(x.objectives)}\nالمحتوى:\n${bullets(x.content)}\nالأنشطة:\n${bullets(x.activities)}`).join("\n")}\n\nأساليب التقييم:\n${bullets(c.evaluation)}\n\nالمواد والأدوات:\n${bullets(c.materials)}\n\nإرشادات للمدرب:\n${c.trainer_notes}`;
+const SIGN_LINE = `\n\n— ${SIGN_TEXT} · ${SITE_URL}`;
+
 const SOCIAL_PART = {
   x: (c) => (c.x_thread || []).join("\n\n"),
   li: (c) => c.linkedin_post,
@@ -146,14 +180,24 @@ async function load() {
   show(outputs[0]?.type);
 
   const sectors = [...new Set(outputs.flatMap((o) => o.content.suggested_sectors || []))].filter((s) => SECTORS[s]);
-  sectorsBox.innerHTML = `<h3>🤝 قطاعات يمكن أن تستفيد من بحثك</h3>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${sectors.map((s) => `<span class="chip">${SECTORS[s]}</span>`).join("") || '<span class="muted">—</span>'}</div>
-    <p class="muted small" style="margin:0">قريباً: دليل الجهات المستفيدة في السعودية مع اقتراح الجهات المناسبة لكل منتج.</p>`;
+  sectorsBox.innerHTML = `<h3>🤝 جهات مقترحة يمكن أن تستفيد من بحثك</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${sectors.map((s) => `<span class="chip">${SECTORS[s]}</span>`).join("")}</div>
+    <div id="orgList" class="grid cols-3"><div class="muted small">جارٍ البحث عن الجهات المناسبة…</div></div>
+    <p class="small" style="margin:14px 0 0"><a href="directory.html">تصفّح دليل الجهات كاملاً ←</a></p>`;
+  if (sectors.length) {
+    const { data: orgs } = await sb.from("organizations").select("*").overlaps("sectors", sectors).limit(40);
+    // الأولوية للجهات التي تطابق أكثر من قطاع
+    const ranked = (orgs || []).map((o) => ({ o, score: o.sectors.filter((x) => sectors.includes(x)).length }))
+      .sort((a, b) => b.score - a.score).slice(0, 6).map((x) => x.o);
+    orgList.innerHTML = ranked.length ? ranked.map(orgCard).join("") : '<div class="muted small">لا توجد جهات مطابقة حالياً.</div>';
+  } else {
+    orgList.innerHTML = '<div class="muted small">لم يحدد الذكاء الاصطناعي قطاعات لهذا البحث.</div>';
+  }
 }
 
 copyBtn.addEventListener("click", () => {
   const o = outputs.find((x) => x.type === active);
-  if (o) copy(PLAIN[o.type](o.content), copyBtn);
+  if (o) copy(PLAIN[o.type](o.content) + SIGN_LINE, copyBtn);
 });
 pdfBtn.addEventListener("click", () => window.print());
 

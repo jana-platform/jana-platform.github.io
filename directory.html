@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دليل الجهات المستفيدة — جَنى</title>
+<meta name="description" content="جَنى — منصة ذكية تحوّل أبحاث الدراسات العليا إلى مخرجات تطبيقية تخدم المجتمع.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1>دليل الجهات المستفيدة</h1>
+        <p class="muted" style="margin:0">جهات سعودية يمكن أن تستفيد من نتائج الأبحاث وتطبّقها، مصنّفة حسب القطاع.</p>
+      </div>
+    </div>
+
+    <input type="search" id="q" placeholder="ابحث باسم الجهة أو مجال عملها…">
+    <div class="filters" id="filters"></div>
+    <p class="small muted" id="count"></p>
+    <div class="grid cols-3" id="orgs"><div class="card empty"><div class="spinner"></div>جارٍ التحميل…</div></div>
+
+    <p class="small muted" style="margin-top:24px">الروابط تنقلك للمواقع الرسمية للجهات. لاقتراح جهة جديدة أو الإبلاغ عن رابط لا يعمل، تواصل مع إدارة المنصة.</p>
+  </div>
+</main>
+<script>
+let all = [], sector = new URLSearchParams(location.search).get("sector") || "";
+
+function draw() {
+  const term = q.value.trim();
+  const list = all.filter((o) =>
+    (!sector || o.sectors.includes(sector)) &&
+    (!term || o.name.includes(term) || o.description.includes(term)));
+  count.textContent = `${list.length} جهة`;
+  orgs.innerHTML = list.length ? list.map(orgCard).join("") : '<div class="card empty">لا توجد نتائج مطابقة.</div>';
+}
+
+filters.innerHTML = [["", "الكل"], ...Object.entries(SECTORS)]
+  .map(([k, v]) => `<button type="button" class="chip l ${k === sector ? "on" : ""}" data-s="${k}">${v}</button>`).join("");
+filters.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-s]"); if (!b) return;
+  sector = b.dataset.s;
+  filters.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+  draw();
+});
+q.addEventListener("input", draw);
+
+(async () => {
+  await renderChrome("directory");
+  const { data, error } = await sb.from("organizations").select("*").order("name");
+  if (error) { orgs.innerHTML = `<div class="alert err">تعذّر تحميل الدليل.</div>`; return; }
+  all = data;
+  draw();
+})();
+</script>
+</body>
+</html>

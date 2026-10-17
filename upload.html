@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="assets/app.js"></script>
@@ -49,7 +50,7 @@
 
       <div class="card">
         <h3>٣. اختر المخرجات</h3>
-        <p class="muted small">تقدر تختار أكثر من مخرج في نفس المرة.</p>
+        <p class="muted small">تقدر تختار مخرجاً واحداً أو أكثر، أو الأربعة في نفس المرة.</p>
         <div id="types"></div>
       </div>
 
@@ -79,7 +80,14 @@ let session, profile, doiState = { verified: false, author: null };
 
 types.innerHTML = Object.entries(OUTPUT_TYPES).map(([k, t]) => `
   <label class="check"><input type="checkbox" name="type" value="${k}" ${k === "policy_brief" ? "checked" : ""}>
-  <span><b>${t.icon} ${t.label}</b><small>${t.desc}</small></span></label>`).join("");
+  <span><b>${t.icon} ${t.label}</b><small>${t.desc}</small></span></label>`).join("") + `
+  <div class="sub-field hidden" id="audienceBox">
+    <label class="lbl" for="audience">🎓 الفئة المستهدفة بالحقيبة التدريبية <span class="muted small">(اختياري)</span></label>
+    <input id="audience" type="text" maxlength="200" placeholder="مثال: معلمات المرحلة الابتدائية، أولياء الأمور، الموظفون الجدد">
+    <div class="hint">إذا تركته فارغاً، يحدد الذكاء الاصطناعي الفئة الأنسب من نتائج بحثك.</div>
+  </div>`;
+const kitBox = document.querySelector('input[name=type][value=training_kit]');
+kitBox.addEventListener("change", () => audienceBox.classList.toggle("hidden", !kitBox.checked));
 
 file.addEventListener("change", () => {
   const f = file.files[0];
@@ -152,6 +160,7 @@ form.addEventListener("submit", async (e) => {
     verification: doiVal && picked ? "doi_matched" : "self_declared",
     ownership_ack: true,
     requested_types: chosen,
+    target_audience: chosen.includes("training_kit") ? (audience.value.trim() || null) : null,
   }).select().single();
   if (insErr) return fail("تعذّر حفظ البحث: " + insErr.message);
 
