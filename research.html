@@ -41,7 +41,7 @@
 </main>
 <script>
 const id = new URLSearchParams(location.search).get("id");
-let outputs = [], active = null, pollTimer = null;
+let outputs = [], active = null, pollTimer = null, currentVerified = false;
 
 const list = (arr) => `<ul>${(arr || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
 
@@ -58,7 +58,7 @@ const RENDER = {
       ${(c.recommendations || []).map((r, i) => `<div class="rec"><b>${i + 1}.</b> ${esc(r.text)}<br><span class="target">الجهة المعنية: ${esc(r.target)}</span></div>`).join("")}
       <h3>الجمهور المستهدف</h3><p>${esc(c.target_audience)}</p>
       <h3>الخاتمة</h3><p>${esc(c.conclusion)}</p>
-      ${SIGN}
+      ${signFor(currentVerified)}
     </article>`,
   poster: (c) => `
     <article class="poster">
@@ -71,7 +71,7 @@ const RENDER = {
         <div class="poster-box g wide"><h3>الخلاصة</h3><p style="margin:0">${esc(c.conclusion)}</p></div>
       </div>
       <div class="poster-foot">${(c.keywords || []).map((k) => `<span class="chip l">${esc(k)}</span>`).join("")}</div>
-      ${SIGN}
+      ${signFor(currentVerified)}
     </article>`,
   training_kit: (c) => `
     <article class="doc">
@@ -98,7 +98,7 @@ const RENDER = {
       <h3>أساليب التقييم</h3>${list(c.evaluation)}
       <h3>المواد والأدوات</h3>${list(c.materials)}
       <h3>إرشادات للمدرب</h3><p>${esc(c.trainer_notes)}</p>
-      ${SIGN}
+      ${signFor(currentVerified)}
     </article>`,
   social: (c) => {
     const tags = (c.hashtags || []).map((h) => "#" + String(h).replace(/^#/, "").replace(/\s+/g, "_")).join(" ");
@@ -111,7 +111,7 @@ const RENDER = {
       <div class="pre">${esc(c.instagram_caption)}</div></div>
     <div class="social-card"><header><b># الوسوم</b><button class="btn ghost sm" data-copy="tags">نسخ</button></header>
       <div dir="auto">${esc(tags)}</div></div>
-    ${SIGN}</div>`;
+    ${signFor(currentVerified)}</div>`;
   },
 };
 
@@ -123,7 +123,7 @@ const PLAIN = {
   social: (c) => `سلسلة X:\n${(c.x_thread || []).map((t, i) => `${i + 1}/ ${t}`).join("\n\n")}\n\nLinkedIn:\n${c.linkedin_post}\n\nإنستقرام:\n${c.instagram_caption}\n\n${(c.hashtags || []).map((h) => "#" + h).join(" ")}`,
 };
 PLAIN.training_kit = (c) => `${c.title}\n\nالفئة المستهدفة: ${c.target_group}\nالمدة المقترحة: ${c.duration}\n\nالهدف العام:\n${c.general_objective}\n\nمبررات البرنامج:\n${c.rationale}\n\nنواتج التعلم:\n${bullets(c.learning_outcomes)}\n\nالجلسات التدريبية:\n${(c.sessions || []).map((x, i) => `\nالجلسة ${i + 1}: ${x.title} (${x.duration})\nالأهداف:\n${bullets(x.objectives)}\nالمحتوى:\n${bullets(x.content)}\nالأنشطة:\n${bullets(x.activities)}`).join("\n")}\n\nأساليب التقييم:\n${bullets(c.evaluation)}\n\nالمواد والأدوات:\n${bullets(c.materials)}\n\nإرشادات للمدرب:\n${c.trainer_notes}`;
-const SIGN_LINE = `\n\n— ${SIGN_TEXT} · ${SITE_URL}`;
+const signLine = () => `\n\n— ${SIGN_TEXT} · ${VERIFY_LABEL(currentVerified)} · ${SITE_URL}`;
 
 const SOCIAL_PART = {
   x: (c) => (c.x_thread || []).join("\n\n"),
@@ -149,9 +149,10 @@ async function load() {
   if (error || !r) { state.innerHTML = `<div class="alert err">البحث غير موجود أو ليس لديك صلاحية عليه.</div>`; delBtn.classList.add("hidden"); return; }
 
   document.title = `${r.title} — جَنى`;
+  currentVerified = !!r.verified;
   rTitle.textContent = r.title;
   rMeta.innerHTML = `${fmtDate(r.created_at)} · <span class="badge ${r.status}">${STATUS[r.status]}</span>
-    <span class="badge ${r.verification === "doi_matched" ? "verified" : "declared"}">${r.verification === "doi_matched" ? "موثّق عبر DOI" : "بإقرار الملكية"}</span>
+    ${verifyBadge(r)}
     ${r.file_deleted ? ` · <span class="muted">🔒 ملف البحث حُذف بعد المعالجة</span>` : ""}`;
 
   if (r.status === "uploaded" || r.status === "processing") {
@@ -197,7 +198,7 @@ async function load() {
 
 copyBtn.addEventListener("click", () => {
   const o = outputs.find((x) => x.type === active);
-  if (o) copy(PLAIN[o.type](o.content) + SIGN_LINE, copyBtn);
+  if (o) copy(PLAIN[o.type](o.content) + signLine(), copyBtn);
 });
 pdfBtn.addEventListener("click", () => window.print());
 

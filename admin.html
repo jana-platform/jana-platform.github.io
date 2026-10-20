@@ -111,7 +111,7 @@ async function loadStats() {
   const t = s.totals;
   kpis.innerHTML = [
     ["👤", "الباحثون", t.researchers, `${fmt(t.specializations)} تخصص`],
-    ["📚", "الأبحاث", t.research, `${fmt(t.doi_verified)} موثّق عبر DOI · ${fmt(t.research_failed)} تعذّر`],
+    ["📚", "الأبحاث", t.research, `${fmt(t.verified)} موثّق · ${fmt(t.name_rejected)} رُفض لعدم تطابق الاسم`],
     ["📄", "المنتجات", t.outputs, `متوسط ${Number(t.avg_outputs ?? 0).toLocaleString("ar-SA")} منتج لكل بحث`],
     ["🏛️", "الجامعات", t.universities, ""],
     ["🔗", "ضغطات على مواقع الجهات", t.org_clicks, `${fmt(t.org_views)} زيارة لصفحات الجهات`],

@@ -28,6 +28,20 @@
     <div id="list"><div class="card empty"><div class="spinner"></div>جارٍ التحميل…</div></div>
 
     <div class="card" style="margin-top:32px">
+      <h3>بياناتي</h3>
+      <p class="muted small">اكتب اسمك كما يظهر في أبحاثك؛ نستخدمه للتحقق التلقائي من ملكية البحث.</p>
+      <div id="profMsg" class="hidden"></div>
+      <form id="profForm">
+        <div class="grid cols-3">
+          <div><label class="lbl" for="pName">الاسم الكامل</label><input id="pName" type="text" required></div>
+          <div><label class="lbl" for="pUni">الجامعة</label><input id="pUni" type="text" required></div>
+          <div><label class="lbl" for="pSpec">التخصص</label><input id="pSpec" type="text" required></div>
+        </div>
+        <button class="btn ghost sm" type="submit" style="margin-top:12px">حفظ البيانات</button>
+      </form>
+    </div>
+
+    <div class="card">
       <h3>حسابي</h3>
       <p class="muted small">حذف الحساب يمسح نهائياً بياناتك وكل أبحاثك ومخرجاتها، ولا يمكن التراجع عنه.</p>
       <div id="accMsg" class="hidden"></div>
@@ -44,10 +58,18 @@
   if (profile) {
     hello.textContent = `أهلاً ${profile.full_name.split(" ")[0]} 👋`;
     profileLine.textContent = [profile.university, profile.specialization].filter(Boolean).join(" · ");
+    pName.value = profile.full_name; pUni.value = profile.university; pSpec.value = profile.specialization;
   }
+  profForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { error } = await sb.from("profiles").update({ full_name: pName.value.trim(), university: pUni.value.trim(), specialization: pSpec.value.trim() }).eq("id", session.user.id);
+    if (error) return showAlert(profMsg, "err", "تعذّر الحفظ: " + esc(error.message));
+    showAlert(profMsg, "ok", "تم حفظ بياناتك ✅");
+    profileLine.textContent = [pUni.value, pSpec.value].join(" · ");
+  });
 
   const { data: items, error } = await sb.from("research")
-    .select("id,title,status,verification,created_at,outputs(type)")
+    .select("id,title,status,verified,created_at,outputs(type)")
     .order("created_at", { ascending: false });
 
   if (error) { list.innerHTML = `<div class="alert err">تعذّر تحميل الأبحاث: ${esc(error.message)}</div>`; return; }
@@ -62,7 +84,7 @@
         <div class="small muted" style="margin-top:4px">
           ${fmtDate(r.created_at)} ·
           <span class="badge ${r.status}">${STATUS[r.status]}</span>
-          <span class="badge ${r.verification === "doi_matched" ? "verified" : "declared"}">${r.verification === "doi_matched" ? "موثّق عبر DOI" : "بإقرار الملكية"}</span>
+          ${verifyBadge(r)}
           ${r.outputs.length ? ` · ${r.outputs.map((o) => OUTPUT_TYPES[o.type]?.label).join("، ")}` : ""}
         </div>
       </div>

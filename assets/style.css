@@ -280,6 +280,9 @@ button.chip.on { background: var(--accent); color: var(--on-accent); }
 .jana-sign { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 24px; padding-top: 14px; border-top: 1px dashed var(--lav-200); color: var(--muted); font-size: .85rem; line-height: 1.5; }
 .jana-sign img { width: 34px; height: 34px; }
 .jana-sign b { display: block; color: var(--heading); font-weight: 600; }
+.jana-sign span { display: block; }
+.jana-sign .vbadge { font-size: .8rem; }
+.jana-sign .vbadge.ok { color: var(--green-800); font-weight: 600; }
 .poster .jana-sign { margin: 0; padding: 12px; background: var(--surface); }
 .social-wrap .jana-sign { margin-top: 8px; }
 

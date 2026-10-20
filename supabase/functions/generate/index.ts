@@ -104,12 +104,20 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-async function callGemini(pdfB64: string, types: OutType[], audience: string | null) {
+async function callGemini(pdfB64: string, types: OutType[], audience: string | null, ownerName: string) {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new Error("مفتاح Gemini غير مضاف بعد");
 
   const properties: Record<string, unknown> = {
     suggested_sectors: A("القطاعات المجتمعية الأنسب للاستفادة من البحث، من هذه القائمة فقط: education, health, nonprofit, government, social, environment, economy, culture, technology, youth"),
+  };
+  properties.author_check = {
+    type: "OBJECT",
+    properties: {
+      authors: A("أسماء مؤلفي البحث كما وردت في الغلاف أو الصفحة الأولى"),
+      name_match: { type: "STRING", enum: ["match", "no_match", "unclear"], description: "هل صاحب الحساب أحد المؤلفين؟" },
+    },
+    required: ["authors", "name_match"],
   };
   for (const t of types) properties[t] = SCHEMAS[t];
 
@@ -119,7 +127,11 @@ async function callGemini(pdfB64: string, types: OutType[], audience: string | n
 - اكتب بالعربية الفصحى الواضحة حتى لو كان البحث بالإنجليزية.
 - التزم بما ورد في البحث فقط؛ لا تخترع أرقاماً أو نتائج أو أسماء غير موجودة فيه.
 - خاطب غير المتخصصين بلغة مبسطة دون الإخلال بالدقة العلمية.
-- لا تذكر اسم الباحث أو بياناته الشخصية.${types.includes("training_kit") ? (audience
+- لا تذكر اسم الباحث أو بياناته الشخصية داخل المخرجات.
+- التحقق من الملكية (author_check): اسم صاحب الحساب هو «${ownerName.slice(0, 120)}». استخرج أسماء المؤلفين من الغلاف أو الصفحة الأولى، ثم حدّد name_match:
+  match إذا كان صاحب الحساب أحد المؤلفين (مع مراعاة اختلاف الكتابة بين العربية والإنجليزية، واختصار الاسم، وترتيب الاسم الأول والعائلة)؛
+  no_match إذا كانت أسماء المؤلفين واضحة وليس صاحب الحساب بينهم؛
+  unclear إذا لم يتضمن الملف أسماء مؤلفين واضحة.${types.includes("training_kit") ? (audience
     ? `\n- الحقيبة التدريبية موجّهة تحديداً إلى هذه الفئة: «${audience.slice(0, 200)}»؛ صمّم المحتوى والأنشطة بما يناسبها.`
     : `\n- حدّد أنسب فئة مستهدفة للحقيبة التدريبية بناءً على نتائج البحث وتوصياته.`) : ""}`;
 
@@ -185,7 +197,13 @@ Deno.serve(async (req) => {
     if (dlErr || !file) throw new Error("تعذر قراءة ملف البحث");
     const b64 = toBase64(new Uint8Array(await file.arrayBuffer()));
 
-    const result = await callGemini(b64, types, research.target_audience ?? null);
+    const { data: profile } = await admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+    const result = await callGemini(b64, types, research.target_audience ?? null, profile?.full_name ?? "");
+    const nameMatch = result.author_check?.name_match ?? "unclear";
+    if (nameMatch === "no_match") {
+      await admin.from("research").update({ name_check: "no_match" }).eq("id", research.id);
+      throw new Error("لم نجد اسمك ضمن مؤلفي هذا البحث، لذلك لم يتم التحويل. جنى تحوّل أبحاث أصحابها فقط. إذا كان البحث بحثك فتأكد أن اسمك في حسابك مكتوب كما يظهر في البحث (من صفحة «أبحاثي») ثم ارفعه مرة أخرى.");
+    }
     const rows = types.filter((t) => result[t]).map((t) => ({
       research_id: research.id,
       user_id: user.id,
@@ -197,7 +215,7 @@ Deno.serve(async (req) => {
     if (insErr) throw new Error(insErr.message);
 
     await admin.storage.from("papers").remove([path]);
-    await admin.from("research").update({ status: "done", file_deleted: true, error: null }).eq("id", research.id);
+    await admin.from("research").update({ status: "done", file_deleted: true, error: null, name_check: nameMatch, verified: nameMatch === "match" }).eq("id", research.id);
     return json({ ok: true, count: rows.length });
   } catch (e) {
     // الخصوصية أولاً: نحذف الملف حتى عند الفشل

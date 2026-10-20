@@ -1,0 +1,4 @@
+-- مطبّق على مشروع Supabase (jana). نسخة مرجعية للتوثيق.
+-- research.verified (boolean) + research.name_check (match/unclear/no_match)
+-- سياسة الإدراج تمنع الباحث من تعيين verified أو name_check بنفسه
+-- admin_stats: إضافة verified و name_rejected

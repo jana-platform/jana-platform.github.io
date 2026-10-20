@@ -56,7 +56,14 @@ function esc(s) {
 const LOGO = `<img src="assets/logo.svg" alt="" aria-hidden="true">`;
 
 // توقيع جنى الذي يظهر أسفل كل مخرج (وفي ملف PDF)
-const SIGN = `<div class="jana-sign"><img src="assets/logo.svg" alt=""><div><b>${SIGN_TEXT}</b><span dir="ltr">${SITE_URL}</span></div></div>`;
+const VERIFY_LABEL = (v) => v ? "✓ بحث موثّق — تمت مطابقة اسم الباحث مع مؤلفي البحث" : "ملكية البحث بإقرار الباحث";
+function signFor(verified) {
+  return `<div class="jana-sign"><img src="assets/logo.svg" alt=""><div><b>${SIGN_TEXT}</b><span class="vbadge ${verified ? "ok" : ""}">${VERIFY_LABEL(verified)}</span><span dir="ltr">${SITE_URL}</span></div></div>`;
+}
+const SIGN = signFor(false);
+function verifyBadge(r) {
+  return r.verified ? `<span class="badge verified">✓ موثّق</span>` : `<span class="badge declared">بإقرار الباحث</span>`;
+}
 
 function fmtDate(d) {
   try { return new Date(d).toLocaleDateString("ar-SA-u-ca-gregory", { year: "numeric", month: "long", day: "numeric" }); }

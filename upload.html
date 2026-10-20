@@ -56,6 +56,7 @@
 
       <div class="card">
         <h3>٤. الإقرار</h3>
+        <div class="alert info small">🔎 <b>تحقق تلقائي:</b> سنطابق اسمك <b id="ownerName"></b> مع أسماء مؤلفي البحث في الملف. إذا تطابق يحصل البحث على شارة <b>«✓ موثّق»</b>، وإذا لم يكن اسمك بين المؤلفين لن يتم التحويل. <a href="dashboard.html">تعديل اسمي</a></div>
         <label class="check"><input type="checkbox" id="ack" required>
           <span>أُقرّ بأنني مؤلف هذا البحث أو أحد مؤلفيه، ولدي الحق في معالجته ونشر مخرجاته.</span></label>
         <label class="check"><input type="checkbox" id="aiAck" required>
@@ -98,6 +99,7 @@ file.addEventListener("change", () => {
   await renderChrome("upload");
   session = await requireAuth();
   ({ data: profile } = await sb.from("profiles").select("*").eq("id", session.user.id).maybeSingle());
+  ownerName.textContent = profile ? `«${profile.full_name}»` : "";
 })();
 
 // تبسيط الأسماء للمقارنة
