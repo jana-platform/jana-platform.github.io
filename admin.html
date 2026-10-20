@@ -30,6 +30,16 @@
     <div id="dash" class="hidden">
       <div class="kpis" id="kpis"></div>
 
+      <div class="card chart-card" style="margin-bottom:16px">
+        <h3>🌳 الأثر الحقيقي للأبحاث</h3>
+        <div class="sub">كم بحثاً وصل لكل مرحلة، كما يسجّلها الباحثون أنفسهم</div>
+        <div id="cFunnel" class="funnel"></div>
+      </div>
+      <div class="grid cols-2" style="margin-bottom:16px">
+        <div class="card chart-card"><h3>الجهات الأكثر أثراً</h3><div class="sub">عدد مرات التواصل المسجّلة (وبجانبها مرات التطبيق)</div><div id="cImpactOrgs"></div></div>
+        <div class="card chart-card"><h3>👍 جودة المخرجات</h3><div class="sub">نسبة التقييمات الإيجابية لكل نوع منتج</div><div id="cRatings"></div><div id="cReasons" style="margin-top:14px"></div></div>
+      </div>
+
       <div class="grid cols-2">
         <div class="card chart-card"><h3>الأبحاث المرفوعة شهرياً</h3><div class="sub">آخر 12 شهراً</div><div id="mResearch"></div></div>
         <div class="card chart-card"><h3>الباحثون الجدد شهرياً</h3><div class="sub">آخر 12 شهراً</div><div id="mResearchers"></div></div>
@@ -124,6 +134,26 @@ async function loadStats() {
   hbars(cSectors, s.by_sector.map((x) => ({ label: SECTORS[x.name] || x.name, n: x.n })));
   hbars(cUnis, s.by_university.map((x) => ({ label: x.name, n: x.n })));
   hbars(cSpecs, s.by_specialization.map((x) => ({ label: x.name, n: x.n })));
+  const { data: im } = await sb.rpc("admin_impact_stats");
+  if (im) {
+    const f = im.funnel;
+    const pct = (n) => f.done ? `${fmt(Math.round((n / f.done) * 100))}٪` : "";
+    hbars(cFunnel, [
+      { label: "✅ أبحاث حُوّلت", n: f.done },
+      { label: "📨 تواصل الباحث مع جهة", n: f.contacted, extra: pct(f.contacted) },
+      { label: "🤝 أبدت الجهة اهتماماً", n: f.interested, extra: pct(f.interested) },
+      { label: "🌳 طُبّق البحث", n: f.applied, extra: pct(f.applied) },
+    ]);
+    hbars(cImpactOrgs, im.top_impact_orgs.map((x) => ({ label: x.name, n: x.n, extra: `${fmt(x.applied)} تطبيق` })), "لم يسجّل الباحثون أي تواصل بعد");
+    const rows = Object.keys(OUTPUT_TYPES).map((k) => {
+      const r = im.ratings[k] || { up: 0, down: 0 }, total = r.up + r.down;
+      return { label: TYPE_LABELS[k], n: total ? Math.round((r.up / total) * 100) : 0, extra: `${fmt(total)} تقييم` };
+    });
+    hbars(cRatings, rows.some((r) => r.extra !== "٠ تقييم") ? rows.map((r) => ({ ...r, n: r.n })) : [], "لا توجد تقييمات بعد");
+    cRatings.querySelectorAll(".val").forEach((v) => v.innerHTML = v.innerHTML.replace(/^([^ <]+)/, "$1٪"));
+    cReasons.innerHTML = im.down_reasons.length ? `<div class="small muted" style="margin-bottom:6px">أسباب التقييم السلبي:</div>` : "";
+    if (im.down_reasons.length) { const d = document.createElement("div"); cReasons.append(d); hbars(d, im.down_reasons.map((x) => ({ label: x.name, n: x.n }))); }
+  }
   hbars(cOrgs, s.top_orgs.map((x) => ({ label: x.name, n: x.clicks, extra: `${fmt(x.views)} زيارة للصفحة` })), "لم يضغط أحد على الجهات بعد");
   return true;
 }

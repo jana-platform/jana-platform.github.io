@@ -35,6 +35,7 @@
         <button class="btn ghost sm" id="pdfBtn">⬇️ تحميل PDF</button>
       </div>
       <div id="panels"></div>
+      <div class="card suggest-box no-print" id="impactBox"></div>
       <div class="card suggest-box no-print" id="sectorsBox"></div>
     </div>
   </div>
@@ -172,7 +173,10 @@ async function load() {
   const order = Object.keys(OUTPUT_TYPES);
   outputs = r.outputs.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
   tabs.innerHTML = outputs.map((o) => `<button type="button" data-t="${o.type}">${OUTPUT_TYPES[o.type].icon} ${OUTPUT_TYPES[o.type].label}</button>`).join("");
-  panels.innerHTML = outputs.map((o) => `<section data-t="${o.type}">${RENDER[o.type](o.content)}</section>`).join("");
+  panels.innerHTML = outputs.map((o) => `<section data-t="${o.type}">${RENDER[o.type](o.content)}${rateBar(o)}</section>`).join("");
+  const { data: myRatings } = await sb.from("output_ratings").select("*").in("output_id", outputs.map((o) => o.id));
+  (myRatings || []).forEach((x) => paintRating(x.output_id, x.rating, x.reasons));
+  panels.addEventListener("click", onRateClick);
   tabs.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => show(b.dataset.t)));
   panels.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => {
     const c = outputs.find((o) => o.type === "social").content;
@@ -181,6 +185,7 @@ async function load() {
   show(outputs[0]?.type);
 
   const sectors = [...new Set(outputs.flatMap((o) => o.content.suggested_sectors || []))].filter((s) => SECTORS[s]);
+  loadImpact();
   sectorsBox.innerHTML = `<h3>🤝 جهات مقترحة يمكن أن تستفيد من بحثك</h3>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${sectors.map((s) => `<span class="chip">${SECTORS[s]}</span>`).join("")}</div>
     <div id="orgList" class="grid cols-3"><div class="muted small">جارٍ البحث عن الجهات المناسبة…</div></div>
@@ -194,6 +199,89 @@ async function load() {
   } else {
     orgList.innerHTML = '<div class="muted small">لم يحدد الذكاء الاصطناعي قطاعات لهذا البحث.</div>';
   }
+}
+
+// ===== تقييم المخرجات =====
+const REASONS = ["غير دقيق", "ناقص", "اللغة غير مناسبة", "غير مفيد عملياً"];
+function rateBar(o) {
+  return `<div class="rate-bar no-print" data-out="${o.id}">
+    <span>هل هذا المخرج مفيد؟</span>
+    <button type="button" class="rate-btn" data-rate="1" aria-label="مفيد">👍</button>
+    <button type="button" class="rate-btn" data-rate="-1" aria-label="غير مفيد">👎</button>
+    <span class="rate-thanks small muted"></span>
+    <div class="rate-reasons hidden">${REASONS.map((r) => `<button type="button" class="chip l" data-reason="${r}">${r}</button>`).join("")}</div>
+  </div>`;
+}
+function paintRating(outId, rating, reasons = []) {
+  const bar = panels.querySelector(`[data-out="${outId}"]`); if (!bar) return;
+  bar.querySelectorAll(".rate-btn").forEach((b) => b.classList.toggle("on", +b.dataset.rate === rating));
+  bar.querySelector(".rate-reasons").classList.toggle("hidden", rating !== -1);
+  bar.querySelectorAll("[data-reason]").forEach((b) => b.classList.toggle("on", reasons.includes(b.dataset.reason)));
+  bar.querySelector(".rate-thanks").textContent = rating === 1 ? "شكراً لتقييمك 🌱" : rating === -1 ? "شكراً، وش اللي ما عجبك؟" : "";
+}
+async function onRateClick(e) {
+  const bar = e.target.closest(".rate-bar"); if (!bar) return;
+  const outId = bar.dataset.out;
+  const rateBtn = e.target.closest("[data-rate]"), reasonBtn = e.target.closest("[data-reason]");
+  if (!rateBtn && !reasonBtn) return;
+  let rating = +(bar.querySelector(".rate-btn.on")?.dataset.rate || 0);
+  let reasons = [...bar.querySelectorAll("[data-reason].on")].map((b) => b.dataset.reason);
+  if (rateBtn) { rating = +rateBtn.dataset.rate; if (rating === 1) reasons = []; }
+  if (reasonBtn) { const r = reasonBtn.dataset.reason; reasons = reasons.includes(r) ? reasons.filter((x) => x !== r) : [...reasons, r]; }
+  paintRating(outId, rating, reasons);
+  await sb.from("output_ratings").upsert({ output_id: outId, rating, reasons, updated_at: new Date().toISOString() });
+}
+
+// ===== قياس الأثر =====
+const IMPACT = {
+  contacted: { label: "تواصلت مع جهة", icon: "📨" },
+  interested: { label: "أبدت الجهة اهتماماً", icon: "🤝" },
+  applied: { label: "طُبّق البحث أو استُخدم المخرج", icon: "🌳" },
+};
+let allOrgs = null;
+async function loadImpact() {
+  const [{ data: events }, orgsRes] = await Promise.all([
+    sb.from("impact_events").select("*, organizations(name)").eq("research_id", id).order("created_at"),
+    allOrgs ? Promise.resolve({ data: allOrgs }) : sb.from("organizations").select("id,name").order("name"),
+  ]);
+  allOrgs = orgsRes.data || [];
+  impactBox.innerHTML = `
+    <h3>📈 أثر بحثك</h3>
+    <p class="muted small">سجّل ما حدث لبحثك بعد تحويله، لنقيس الأثر الفعلي للأبحاث (تظهر للإدارة كأرقام مجمّعة فقط).</p>
+    <div class="impact-steps">${Object.entries(IMPACT).map(([k, v]) => {
+      const n = (events || []).filter((e) => e.kind === k).length;
+      return `<div class="impact-step ${n ? "on" : ""}"><span>${v.icon}</span><b>${v.label}</b><span class="small muted">${n ? `${n.toLocaleString("ar-SA")} ✓` : "—"}</span></div>`;
+    }).join("")}</div>
+    <form id="impactForm" class="impact-form">
+      <select id="iKind" required>${Object.entries(IMPACT).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label}</option>`).join("")}</select>
+      <select id="iOrg" required>
+        <option value="">اختر الجهة…</option>
+        ${allOrgs.map((o) => `<option value="${o.id}">${esc(o.name)}</option>`).join("")}
+        <option value="other">جهة أخرى غير موجودة في الدليل</option>
+      </select>
+      <input id="iOther" type="text" maxlength="150" placeholder="اسم الجهة" class="hidden">
+      <button class="btn green sm" type="submit">تسجيل</button>
+    </form>
+    <div id="iMsg" class="hidden"></div>
+    ${(events || []).length ? `<ul class="impact-list">${events.map((e) => `
+      <li><span>${IMPACT[e.kind].icon} ${IMPACT[e.kind].label} — <b>${esc(e.organizations?.name || e.org_other || "")}</b> <span class="small muted">${fmtDate(e.created_at)}</span></span>
+      <button class="btn ghost sm" data-del-impact="${e.id}">حذف</button></li>`).join("")}</ul>` : ""}`;
+  iOrg.addEventListener("change", () => iOther.classList.toggle("hidden", iOrg.value !== "other"));
+  impactForm.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const other = iOrg.value === "other";
+    if (other && !iOther.value.trim()) return showAlert(iMsg, "err", "اكتب اسم الجهة.");
+    const { error } = await sb.from("impact_events").insert({
+      research_id: id, kind: iKind.value,
+      org_id: other ? null : iOrg.value, org_other: other ? iOther.value.trim() : null,
+    });
+    if (error) return showAlert(iMsg, "err", "تعذّر التسجيل: " + esc(error.message));
+    loadImpact();
+  });
+  impactBox.querySelectorAll("[data-del-impact]").forEach((b) => b.addEventListener("click", async () => {
+    await sb.from("impact_events").delete().eq("id", b.dataset.delImpact);
+    loadImpact();
+  }));
 }
 
 copyBtn.addEventListener("click", () => {
