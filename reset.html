@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تعيين كلمة مرور جديدة — جَنى</title>
+<meta name="description" content="جَنى — منصة ذكية تحوّل أبحاث الدراسات العليا إلى مخرجات تطبيقية تخدم المجتمع.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container narrow" style="max-width:520px">
+    <div class="card">
+      <h2 style="margin-top:0">تعيين كلمة مرور جديدة</h2>
+      <div id="msg" class="hidden"></div>
+      <div id="loading" class="empty"><div class="spinner"></div>جارٍ التحقق من الرابط…</div>
+
+      <form id="resetForm" class="hidden">
+        <div class="form-row"><label class="lbl" for="p1">كلمة المرور الجديدة</label><input id="p1" type="password" dir="ltr" minlength="6" required autocomplete="new-password"><div class="hint">6 أحرف أو أكثر.</div></div>
+        <div class="form-row"><label class="lbl" for="p2">تأكيد كلمة المرور</label><input id="p2" type="password" dir="ltr" minlength="6" required autocomplete="new-password"></div>
+        <button class="btn" style="width:100%" type="submit">حفظ كلمة المرور</button>
+      </form>
+
+      <div id="expired" class="hidden">
+        <p class="muted">الرابط غير صالح أو انتهت صلاحيته. ارجع لصفحة الدخول واضغط «نسيت كلمة المرور» مرة ثانية لإرسال رابط جديد.</p>
+        <a class="btn" href="auth.html">صفحة الدخول</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+(async () => {
+  await renderChrome("auth");
+  // رابط الإيميل يسجّل الدخول مؤقتاً؛ ننتظر قليلاً حتى تكتمل قراءة الرابط
+  let { data: { session } } = await sb.auth.getSession();
+  if (!session) { await new Promise((r) => setTimeout(r, 1500)); ({ data: { session } } = await sb.auth.getSession()); }
+  loading.classList.add("hidden");
+  (session ? resetForm : expired).classList.remove("hidden");
+})();
+
+resetForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (p1.value !== p2.value) return showAlert(msg, "err", "كلمتا المرور غير متطابقتين.");
+  const btn = e.submitter; btn.disabled = true;
+  const { error } = await sb.auth.updateUser({ password: p1.value });
+  btn.disabled = false;
+  if (error) {
+    const m = (error.message || "").toLowerCase();
+    return showAlert(msg, "err", m.includes("different") || m.includes("same") ? "اختر كلمة مرور مختلفة عن القديمة." : arError(error));
+  }
+  resetForm.classList.add("hidden");
+  showAlert(msg, "ok", "تم تغيير كلمة المرور ✅ من الحين ادخل بكلمة المرور الجديدة.");
+  setTimeout(() => (location.href = "dashboard.html"), 1800);
+});
+</script>
+</body>
+</html>

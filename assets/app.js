@@ -20,6 +20,11 @@ const JANA_CONFIG = {
   supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6YWVocWh4emdueHVoam1keG9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNTk1MjksImV4cCI6MjEwNzgzNTUyOX0.D-Tak-E5SYC2A6peZnHcJxsmiA8D0GIRirPYmYFySWk",
 };
 
+// رابط استعادة كلمة المرور من الإيميل: أياً كانت الصفحة التي فتحها، نوجّهه لصفحة تعيين كلمة المرور
+if (/type=recovery/.test(location.hash) && !location.pathname.endsWith("reset.html")) {
+  location.replace("reset.html" + location.hash);
+}
+
 const sb = window.supabase.createClient(JANA_CONFIG.supabaseUrl, JANA_CONFIG.supabaseKey);
 
 const OUTPUT_TYPES = {

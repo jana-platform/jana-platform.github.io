@@ -66,13 +66,15 @@
   document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => tab(b.dataset.tab)));
   if (location.hash === "#signup") tab("signup");
 
+  const cameFromRecovery = /type=recovery/.test(location.hash);
+  if (cameFromRecovery) location.replace("reset.html" + location.hash);
   renderChrome("auth").then((session) => {
-    if (session && !location.hash.includes("type=recovery")) location.replace("dashboard.html");
+    if (session && !cameFromRecovery) location.replace("dashboard.html");
   });
 
   // عند الضغط على رابط استعادة كلمة المرور من الإيميل
   sb.auth.onAuthStateChange((event) => {
-    if (event === "PASSWORD_RECOVERY") { tab("reset"); document.querySelector(".tabs").classList.add("hidden"); }
+    if (event === "PASSWORD_RECOVERY") location.replace("reset.html");
   });
 
   loginForm.addEventListener("submit", async (e) => {
@@ -106,9 +108,9 @@
     e.preventDefault();
     const email = lEmail.value.trim();
     if (!email) return showAlert(msg, "warn", "اكتب إيميلك في الخانة أولاً ثم اضغط «نسيت كلمة المرور».");
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: new URL("auth.html", location.href).href });
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: new URL("reset.html", location.href).href });
     if (error) return showAlert(msg, "err", arError(error));
-    showAlert(msg, "ok", "أرسلنا رابط إعادة تعيين كلمة المرور إلى إيميلك.");
+    showAlert(msg, "ok", "أرسلنا رابط إعادة تعيين كلمة المرور إلى إيميلك. افتحه واكتب كلمة المرور الجديدة في الصفحة اللي تفتح لك. (تأكد من مجلد الرسائل غير المرغوبة)");
   });
 
   resetForm.addEventListener("submit", async (e) => {
