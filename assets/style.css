@@ -38,6 +38,8 @@
   --band-link: #DDD4F2;
   --poster-a: #45367A;
   --poster-b: #7059B3;
+  --bar: #7059B3;
+  --track: #EFEAF9;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(36, 31, 53, .04), 0 8px 24px rgba(69, 54, 122, .06);
   --font-body: "IBM Plex Sans Arabic", system-ui, sans-serif;
@@ -78,6 +80,8 @@
   --band-link: #C9BCEB;
   --poster-a: #3A2E6B;
   --poster-b: #5A47A0;
+  --bar: #8E7BD0;
+  --track: #2A2440;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
   color-scheme: dark;
 }
@@ -287,6 +291,38 @@ button.chip.on { background: var(--accent); color: var(--on-accent); }
 .org-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 20px; }
 .suggest-box { margin-top: 24px; }
+
+/* لوحة الإدارة */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+.kpi .v { font-size: 2rem; font-weight: 700; color: var(--heading); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: .9rem; }
+.kpi .s { color: var(--muted); font-size: .78rem; margin-top: 4px; }
+.chart-card h3 { font-size: 1.25rem; margin-bottom: 2px; }
+.chart-card .sub { color: var(--muted); font-size: .85rem; margin-bottom: 14px; }
+.hbar { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: 4px 10px; font-size: .9rem; }
+.hbar .lbl { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar .trk { height: 14px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.hbar .bar { height: 100%; background: var(--bar); border-radius: 4px; min-width: 2px; }
+.hbar .val { color: var(--ink); font-variant-numeric: tabular-nums; min-width: 2ch; text-align: end; }
+.hbar .row { display: contents; }
+.hbar .row:hover .lbl, .hbar .row:hover .val { font-weight: 700; }
+.vbars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; align-items: end; height: 170px; border-bottom: 1px solid var(--line); padding-top: 18px; }
+.vbars .col { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; cursor: default; }
+.vbars .col:hover { background: var(--lav-50); border-radius: 4px 4px 0 0; }
+.vbars .b { width: 62%; background: var(--bar); border-radius: 4px 4px 0 0; }
+.vbars .n { font-size: .72rem; color: var(--ink); margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+.vlabels { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; font-size: .68rem; color: var(--muted); text-align: center; margin-top: 4px; }
+.empty-chart { color: var(--muted); font-size: .9rem; padding: 18px 0; text-align: center; }
+.org-admin-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.org-admin-row:last-child { border-bottom: 0; }
+.org-admin-row.off { opacity: .55; }
+.org-list { max-height: 520px; overflow-y: auto; }
+dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); padding: 22px; width: min(560px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(20, 17, 28, .55); }
+.sector-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.sector-checks .check { padding: 6px 10px; }
+.sector-checks .check input { margin-top: 4px; }
 
 /* الفوتر */
 .site-footer { border-top: 1px solid var(--line); background: var(--surface); padding: 24px 0; font-size: .9rem; color: var(--muted); }

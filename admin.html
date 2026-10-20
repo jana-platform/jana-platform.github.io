@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة الإدارة وقياس الأثر — جَنى</title>
+<meta name="description" content="جَنى — منصة ذكية تحوّل أبحاث الدراسات العليا إلى مخرجات تطبيقية تخدم المجتمع.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1>لوحة الإدارة وقياس الأثر</h1>
+        <p class="muted small" style="margin:0">🔒 أرقام إجمالية فقط — اللوحة لا تعرض أي عنوان أو محتوى بحث أو مخرج.</p>
+      </div>
+      <button class="btn ghost sm" id="refreshBtn">↻ تحديث</button>
+    </div>
+
+    <div id="denied" class="hidden"><div class="alert err">هذه الصفحة مخصصة لإدارة المنصة فقط.</div></div>
+
+    <div id="dash" class="hidden">
+      <div class="kpis" id="kpis"></div>
+
+      <div class="grid cols-2">
+        <div class="card chart-card"><h3>الأبحاث المرفوعة شهرياً</h3><div class="sub">آخر 12 شهراً</div><div id="mResearch"></div></div>
+        <div class="card chart-card"><h3>الباحثون الجدد شهرياً</h3><div class="sub">آخر 12 شهراً</div><div id="mResearchers"></div></div>
+        <div class="card chart-card"><h3>المنتجات حسب النوع</h3><div class="sub">عدد المنتجات المولّدة من كل نوع</div><div id="cTypes"></div></div>
+        <div class="card chart-card"><h3>القطاعات الأكثر ارتباطاً بالأبحاث</h3><div class="sub">عدد الأبحاث التي اقتُرح لها كل قطاع</div><div id="cSectors"></div></div>
+        <div class="card chart-card"><h3>الباحثون حسب الجامعة</h3><div class="sub">أعلى 12 جامعة</div><div id="cUnis"></div></div>
+        <div class="card chart-card"><h3>الباحثون حسب التخصص</h3><div class="sub">أعلى 12 تخصصاً</div><div id="cSpecs"></div></div>
+      </div>
+
+      <div class="card chart-card" style="margin-top:16px">
+        <h3>أكثر الجهات تفاعلاً</h3>
+        <div class="sub">ضغطات «زيارة الموقع الرسمي» (وبجانبها عدد مرات فتح صفحة الجهة)</div>
+        <div id="cOrgs"></div>
+      </div>
+
+      <!-- إدارة الجهات -->
+      <div class="card" style="margin-top:16px">
+        <div class="page-head" style="margin-bottom:12px">
+          <div><h3 style="margin:0">إدارة دليل الجهات</h3><div class="muted small" id="orgCount"></div></div>
+          <button class="btn green sm" id="addOrg">＋ إضافة جهة</button>
+        </div>
+        <input type="search" id="orgQ" placeholder="ابحث عن جهة…">
+        <div class="org-list" id="orgList" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="orgDlg">
+    <form id="orgForm" method="dialog">
+      <h3 id="dlgTitle" style="margin-top:0">إضافة جهة</h3>
+      <div id="dlgMsg" class="hidden"></div>
+      <div class="form-row"><label class="lbl" for="fName">اسم الجهة</label><input id="fName" type="text" required></div>
+      <div class="form-row"><label class="lbl" for="fDesc">نبذة مختصرة</label><input id="fDesc" type="text" required></div>
+      <div class="form-row"><label class="lbl" for="fWeb">رابط الموقع الرسمي</label><input id="fWeb" type="url" dir="ltr" required placeholder="https://"></div>
+      <div class="form-row"><label class="lbl" for="fCity">المدينة</label><input id="fCity" type="text" required></div>
+      <div class="form-row"><label class="lbl">القطاعات</label><div class="sector-checks" id="fSectors"></div></div>
+      <label class="check"><input type="checkbox" id="fActive" checked><span>ظاهرة في الدليل</span></label>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button type="button" class="btn ghost sm" id="dlgCancel">إلغاء</button>
+        <button type="submit" class="btn sm" id="dlgSave">حفظ</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+<script>
+const TYPE_LABELS = Object.fromEntries(Object.entries(OUTPUT_TYPES).map(([k, v]) => [k, v.label]));
+const MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const fmt = (n) => Number(n || 0).toLocaleString("ar-SA");
+let orgs = [], editing = null;
+
+// رسم أعمدة أفقية (عنوان + عمود + رقم)
+function hbars(el, rows, emptyText = "لا توجد بيانات بعد") {
+  if (!rows.length || rows.every((r) => !r.n)) { el.innerHTML = `<div class="empty-chart">${emptyText}</div>`; return; }
+  const max = Math.max(...rows.map((r) => r.n), 1);
+  el.innerHTML = `<div class="hbar" role="table">${rows.map((r) => `
+    <div class="row" role="row" title="${esc(r.label)}: ${fmt(r.n)}${r.extra ? " · " + esc(r.extra) : ""}">
+      <span class="lbl" role="cell">${esc(r.label)}</span>
+      <span class="trk" role="cell"><span class="bar" style="display:block;width:${(r.n / max) * 100}%"></span></span>
+      <span class="val" role="cell">${fmt(r.n)}${r.extra ? ` <span class="muted small">(${esc(r.extra)})</span>` : ""}</span>
+    </div>`).join("")}</div>`;
+}
+
+// رسم أعمدة عمودية للأشهر
+function vbars(el, monthly, key) {
+  const max = Math.max(...monthly.map((m) => m[key]), 1);
+  el.innerHTML = `<div class="vbars">${monthly.map((m) => {
+    const [y, mo] = m.month.split("-");
+    return `<div class="col" title="${MONTHS[+mo - 1]} ${y}: ${fmt(m[key])}">
+      ${m[key] ? `<span class="n">${fmt(m[key])}</span>` : ""}
+      <span class="b" style="height:${(m[key] / max) * 82}%"></span></div>`;
+  }).join("")}</div>
+  <div class="vlabels">${monthly.map((m) => `<span>${MONTHS[+m.month.split("-")[1] - 1].slice(0, 3)}</span>`).join("")}</div>`;
+}
+
+async function loadStats() {
+  const { data: s, error } = await sb.rpc("admin_stats");
+  if (error) { denied.classList.remove("hidden"); dash.classList.add("hidden"); return false; }
+  dash.classList.remove("hidden");
+  const t = s.totals;
+  kpis.innerHTML = [
+    ["👤", "الباحثون", t.researchers, `${fmt(t.specializations)} تخصص`],
+    ["📚", "الأبحاث", t.research, `${fmt(t.doi_verified)} موثّق عبر DOI · ${fmt(t.research_failed)} تعذّر`],
+    ["📄", "المنتجات", t.outputs, `متوسط ${Number(t.avg_outputs ?? 0).toLocaleString("ar-SA")} منتج لكل بحث`],
+    ["🏛️", "الجامعات", t.universities, ""],
+    ["🔗", "ضغطات على مواقع الجهات", t.org_clicks, `${fmt(t.org_views)} زيارة لصفحات الجهات`],
+    ["🤝", "جهات في الدليل", t.orgs, ""],
+  ].map(([i, l, v, sub]) => `<div class="kpi"><div class="l">${i} ${l}</div><div class="v">${fmt(v)}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`).join("");
+
+  vbars(mResearch, s.monthly, "research");
+  vbars(mResearchers, s.monthly, "researchers");
+  hbars(cTypes, Object.keys(OUTPUT_TYPES).map((k) => ({ label: TYPE_LABELS[k], n: s.by_type[k] || 0 })));
+  hbars(cSectors, s.by_sector.map((x) => ({ label: SECTORS[x.name] || x.name, n: x.n })));
+  hbars(cUnis, s.by_university.map((x) => ({ label: x.name, n: x.n })));
+  hbars(cSpecs, s.by_specialization.map((x) => ({ label: x.name, n: x.n })));
+  hbars(cOrgs, s.top_orgs.map((x) => ({ label: x.name, n: x.clicks, extra: `${fmt(x.views)} زيارة للصفحة` })), "لم يضغط أحد على الجهات بعد");
+  return true;
+}
+
+// ===== إدارة الجهات =====
+fSectors.innerHTML = Object.entries(SECTORS).map(([k, v]) =>
+  `<label class="check"><input type="checkbox" name="sec" value="${k}"><span>${v}</span></label>`).join("");
+
+function drawOrgs() {
+  const q = orgQ.value.trim();
+  const list = orgs.filter((o) => !q || o.name.includes(q));
+  orgCount.textContent = `${fmt(orgs.filter((o) => o.active).length)} ظاهرة · ${fmt(orgs.filter((o) => !o.active).length)} موقوفة`;
+  orgList.innerHTML = list.map((o) => `
+    <div class="org-admin-row ${o.active ? "" : "off"}">
+      <div><b>${esc(o.name)}</b> ${o.active ? "" : '<span class="badge failed">موقوفة</span>'}
+        <div class="small muted" dir="ltr" style="text-align:right">${esc(o.website)}</div></div>
+      <button class="btn ghost sm" data-edit="${o.id}">تعديل</button>
+    </div>`).join("") || '<div class="empty-chart">لا توجد نتائج</div>';
+}
+
+async function loadOrgs() {
+  const { data } = await sb.from("organizations").select("*").order("name");
+  orgs = data || [];
+  drawOrgs();
+}
+
+function openDlg(o) {
+  editing = o?.id || null;
+  dlgTitle.textContent = o ? "تعديل جهة" : "إضافة جهة";
+  dlgMsg.classList.add("hidden");
+  fName.value = o?.name || ""; fDesc.value = o?.description || ""; fWeb.value = o?.website || "";
+  fCity.value = o?.city || "الرياض"; fActive.checked = o ? o.active : true;
+  document.querySelectorAll("input[name=sec]").forEach((c) => (c.checked = !!o?.sectors?.includes(c.value)));
+  orgDlg.showModal();
+}
+
+orgQ.addEventListener("input", drawOrgs);
+addOrg.addEventListener("click", () => openDlg(null));
+dlgCancel.addEventListener("click", () => orgDlg.close());
+orgList.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-edit]");
+  if (b) openDlg(orgs.find((o) => o.id === b.dataset.edit));
+});
+orgForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const sectors = [...document.querySelectorAll("input[name=sec]:checked")].map((c) => c.value);
+  if (!sectors.length) return showAlert(dlgMsg, "err", "اختر قطاعاً واحداً على الأقل.");
+  const row = { name: fName.value.trim(), description: fDesc.value.trim(), website: fWeb.value.trim(), city: fCity.value.trim(), sectors, active: fActive.checked };
+  dlgSave.disabled = true;
+  const { error } = editing
+    ? await sb.from("organizations").update(row).eq("id", editing)
+    : await sb.from("organizations").insert(row);
+  dlgSave.disabled = false;
+  if (error) return showAlert(dlgMsg, "err", error.message.includes("duplicate") ? "توجد جهة بنفس الاسم." : esc(error.message));
+  orgDlg.close();
+  await loadOrgs();
+  loadStats();
+});
+
+refreshBtn.addEventListener("click", async () => { refreshBtn.disabled = true; await loadStats(); refreshBtn.disabled = false; });
+
+(async () => {
+  await renderChrome("admin");
+  await requireAuth();
+  if (await loadStats()) loadOrgs();
+})();
+</script>
+</body>
+</html>

@@ -88,6 +88,14 @@ async function renderChrome(active) {
     </div></footer>`);
 
   document.getElementById("themeBtn").addEventListener("click", toggleTheme);
+
+  // رابط لوحة الإدارة يظهر للمشرفة فقط
+  if (session) {
+    sb.rpc("is_admin").then(({ data }) => {
+      if (data) document.getElementById("logoutBtn")?.insertAdjacentHTML("beforebegin",
+        `<a href="admin.html" class="${active === "admin" ? "active" : ""}">📊 لوحة الإدارة</a>`);
+    });
+  }
   document.getElementById("logoutBtn")?.addEventListener("click", async () => {
     await sb.auth.signOut();
     location.href = "index.html";
