@@ -176,7 +176,7 @@ async function load() {
     return;
   }
 
-  state.innerHTML = "";
+  state.innerHTML = r.error ? `<div class="alert warn">${esc(r.error)}</div>` : "";
   outputsWrap.classList.remove("hidden");
   const order = Object.keys(OUTPUT_TYPES);
   outputs = r.outputs.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));

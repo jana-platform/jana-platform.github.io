@@ -104,85 +104,83 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-async function callGemini(pdfB64: string, types: OutType[], audience: string | null, ownerName: string, deadline: number) {
+// النماذج بالترتيب: نبدأ بالأسرع والأقل ازدحاماً، ثم البدائل (تم اختبارها فعلياً)
+const MODELS = [Deno.env.get("GEMINI_MODEL"), "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"].filter(Boolean) as string[];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// استدعاء واحد مع إعادة المحاولة والتنقل بين النماذج، دون تجاوز المهلة
+async function callModel(pdfB64: string, prompt: string, schema: unknown, deadline: number) {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new Error("مفتاح Gemini غير مضاف بعد");
-
-  const properties: Record<string, unknown> = {
-    suggested_sectors: A("القطاعات المجتمعية الأنسب للاستفادة من البحث، من هذه القائمة فقط: education, health, nonprofit, government, social, environment, economy, culture, technology, youth"),
-  };
-  properties.author_check = {
-    type: "OBJECT",
-    properties: {
-      authors: A("أسماء مؤلفي البحث كما وردت في الغلاف أو الصفحة الأولى"),
-      name_match: { type: "STRING", enum: ["match", "no_match", "unclear"], description: "هل صاحب الحساب أحد المؤلفين؟" },
-    },
-    required: ["authors", "name_match"],
-  };
-  for (const t of types) properties[t] = SCHEMAS[t];
-
-  const prompt = `أنت خبير في تحويل الأبحاث العلمية إلى مخرجات تطبيقية تخدم المجتمع.
-اقرأ البحث المرفق كاملاً، ثم أنتج المخرجات المطلوبة فقط.
-القواعد:
-- اكتب بالعربية الفصحى الواضحة حتى لو كان البحث بالإنجليزية.
-- التزم بما ورد في البحث فقط؛ لا تخترع أرقاماً أو نتائج أو أسماء غير موجودة فيه.
-- خاطب غير المتخصصين بلغة مبسطة دون الإخلال بالدقة العلمية.
-- لا تذكر اسم الباحث أو بياناته الشخصية داخل المخرجات.
-- التحقق من الملكية (author_check): اسم صاحب الحساب هو «${ownerName.slice(0, 120)}». استخرج أسماء المؤلفين من الغلاف أو الصفحة الأولى، ثم حدّد name_match:
-  match إذا كان صاحب الحساب أحد المؤلفين (مع مراعاة اختلاف الكتابة بين العربية والإنجليزية، واختصار الاسم، وترتيب الاسم الأول والعائلة)؛
-  no_match إذا كانت أسماء المؤلفين واضحة وليس صاحب الحساب بينهم؛
-  unclear إذا لم يتضمن الملف أسماء مؤلفين واضحة.${types.includes("training_kit") ? (audience
-    ? `\n- الحقيبة التدريبية موجّهة تحديداً إلى هذه الفئة: «${audience.slice(0, 200)}»؛ صمّم المحتوى والأنشطة بما يناسبها.`
-    : `\n- حدّد أنسب فئة مستهدفة للحقيبة التدريبية بناءً على نتائج البحث وتوصياته.`) : ""}`;
-
-  const body = {
+  const payload = JSON.stringify({
     contents: [{ role: "user", parts: [{ inline_data: { mime_type: "application/pdf", data: pdfB64 } }, { text: prompt }] }],
-    generationConfig: {
-      temperature: 0.4,
-      responseMimeType: "application/json",
-      responseSchema: { type: "OBJECT", properties, required: Object.keys(properties) },
-    },
-  };
-
-  // نجرب أكثر من نموذج، ونعيد المحاولة تلقائياً عند ازدحام خوادم Google
-  const models = [Deno.env.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"].filter(Boolean) as string[];
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const payload = JSON.stringify(body);
-  let busy = false, lastErr = "";
-  outer:
-  for (const model of models) {
+    generationConfig: { temperature: 0.4, responseMimeType: "application/json", responseSchema: schema },
+  });
+  let lastErr = "";
+  for (const model of MODELS) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      // لا نتجاوز المهلة المسموحة للخدمة حتى نضمن حذف الملف دائماً
       const left = deadline - Date.now();
-      if (left < 20000) { busy = true; lastErr = "time budget exceeded"; break outer; }
+      if (left < 15000) throw new Error("BUSY:time budget exceeded " + lastErr);
       let res: Response;
       try {
         res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": key },
           body: payload,
-          signal: AbortSignal.timeout(left - 8000),
+          signal: AbortSignal.timeout(Math.min(left - 8000, 75000)),
         });
-      } catch (_e) {
-        busy = true; lastErr = "request timed out"; break outer;
-      }
-      if (res.status === 404) { lastErr = `model ${model} not found`; break; }
+      } catch (_e) { lastErr = `${model} timeout`; break; }
       const data = await res.json().catch(() => ({}));
       if ([429, 500, 503, 504].includes(res.status)) {
-        busy = true; lastErr = data?.error?.message ?? `HTTP ${res.status}`;
-        if (attempt === 0 && deadline - Date.now() > 30000) await sleep(3000);
-        continue;
+        lastErr = `${model} ${res.status}`;
+        if (attempt === 0 && deadline - Date.now() > 40000) { await sleep(2500); continue; }
+        break;
       }
-      if (!res.ok) throw new Error(data?.error?.message ?? `Gemini error ${res.status}`);
+      if (!res.ok) { lastErr = `${model} ${res.status}: ${data?.error?.message ?? ""}`.slice(0, 200); break; }
       const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("");
-      if (!text) { lastErr = "empty response"; break; }
-      return JSON.parse(text);
+      if (!text) { lastErr = `${model} empty`; break; }
+      try { return JSON.parse(text); } catch { lastErr = `${model} bad json`; break; }
     }
   }
-  console.error("gemini failed:", lastErr);
-  if (busy) throw new Error("خدمة الذكاء الاصطناعي من Google مزدحمة حالياً (ضغط مؤقت على خوادمها). جرّب مرة أخرى بعد بضع دقائق.");
-  throw new Error("تعذّر الوصول إلى خدمة الذكاء الاصطناعي حالياً. جرّب مرة أخرى لاحقاً.");
+  throw new Error("BUSY:" + lastErr);
 }
+
+const BASE_RULES = `أنت خبير في تحويل الأبحاث العلمية إلى مخرجات تطبيقية تخدم المجتمع.
+اقرأ البحث المرفق كاملاً.
+القواعد:
+- اكتب بالعربية الفصحى الواضحة حتى لو كان البحث بالإنجليزية.
+- التزم بما ورد في البحث فقط؛ لا تخترع أرقاماً أو نتائج أو أسماء غير موجودة فيه.
+- خاطب غير المتخصصين بلغة مبسطة دون الإخلال بالدقة العلمية.
+- لا تذكر اسم الباحث أو بياناته الشخصية داخل المخرجات.`;
+
+const META_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    suggested_sectors: A("القطاعات المجتمعية الأنسب للاستفادة من البحث، من هذه القائمة فقط: education, health, nonprofit, government, social, environment, economy, culture, technology, youth"),
+    authors: A("أسماء مؤلفي البحث كما وردت في الغلاف أو الصفحة الأولى"),
+    name_match: { type: "STRING", enum: ["match", "no_match", "unclear"], description: "هل صاحب الحساب أحد المؤلفين؟" },
+  },
+  required: ["suggested_sectors", "authors", "name_match"],
+};
+
+function metaPrompt(ownerName: string) {
+  return `اقرأ الصفحات الأولى من البحث المرفق.
+اسم صاحب الحساب هو «${ownerName.slice(0, 120)}». استخرج أسماء المؤلفين من الغلاف أو الصفحة الأولى، ثم حدّد name_match:
+- match إذا كان صاحب الحساب أحد المؤلفين (مع مراعاة اختلاف الكتابة بين العربية والإنجليزية، واختصار الاسم، وترتيب الاسم الأول والعائلة)؛
+- no_match إذا كانت أسماء المؤلفين واضحة وليس صاحب الحساب بينهم؛
+- unclear إذا لم يتضمن الملف أسماء مؤلفين واضحة.
+وحدّد القطاعات المجتمعية الأنسب للاستفادة من البحث.`;
+}
+
+const TYPE_TASK: Record<OutType, string> = {
+  policy_brief: "أنتج موجز سياسات لصنّاع القرار.",
+  poster: "أنتج محتوى ملصق علمي مختصر.",
+  social: "أنتج محتوى للتواصل الاجتماعي بلغة جذابة مبسطة.",
+  training_kit: "أنتج حقيبة تدريبية متكاملة.",
+};
+const TYPE_LABEL: Record<OutType, string> = {
+  policy_brief: "موجز السياسات", poster: "الملصق العلمي", social: "محتوى السوشيال ميديا", training_kit: "الحقيبة التدريبية",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -231,24 +229,47 @@ Deno.serve(async (req) => {
     const b64 = toBase64(new Uint8Array(await file.arrayBuffer()));
 
     const { data: profile } = await admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-    const result = await callGemini(b64, types, research.target_audience ?? null, profile?.full_name ?? "", started + 115000);
-    const nameMatch = result.author_check?.name_match ?? "unclear";
+    const deadline = started + 120000;
+
+    // كل منتج يتولد في طلب مستقل وبالتوازي، مع طلب صغير للتحقق من الاسم والقطاعات
+    const audience = research.target_audience as string | null;
+    const [metaRes, ...outRes] = await Promise.allSettled([
+      callModel(b64, metaPrompt(profile?.full_name ?? ""), META_SCHEMA, deadline),
+      ...types.map((t) => callModel(b64,
+        `${BASE_RULES}\n\nالمطلوب: ${TYPE_TASK[t]}${t === "training_kit" ? (audience
+          ? `\nالحقيبة موجّهة تحديداً إلى هذه الفئة: «${audience.slice(0, 200)}»؛ صمّم المحتوى والأنشطة بما يناسبها.`
+          : "\nحدّد أنسب فئة مستهدفة للحقيبة بناءً على نتائج البحث وتوصياته.") : ""}`,
+        SCHEMAS[t], deadline)),
+    ]);
+    outRes.forEach((r, i) => { if (r.status === "rejected") console.error("output failed", types[i], String(r.reason).slice(0, 200)); });
+
+    const meta = metaRes.status === "fulfilled" ? metaRes.value : null;
+    const nameMatch = meta?.name_match ?? "unclear";
     if (nameMatch === "no_match") {
       await admin.from("research").update({ name_check: "no_match" }).eq("id", research.id);
       throw new Error("لم نجد اسمك ضمن مؤلفي هذا البحث، لذلك لم يتم التحويل. جنى تحوّل أبحاث أصحابها فقط. إذا كان البحث بحثك فتأكد أن اسمك في حسابك مكتوب كما يظهر في البحث (من صفحة «أبحاثي») ثم ارفعه مرة أخرى.");
     }
-    const rows = types.filter((t) => result[t]).map((t) => ({
-      research_id: research.id,
-      user_id: user.id,
-      type: t,
-      content: { ...result[t], suggested_sectors: result.suggested_sectors ?? [] },
-    }));
+    const failedTypes = types.filter((_, i) => outRes[i].status === "rejected");
+    if (failedTypes.length === types.length) {
+      throw new Error("خدمة الذكاء الاصطناعي من Google مزدحمة حالياً (ضغط مؤقت على خوادمها). جرّب مرة أخرى بعد بضع دقائق.");
+    }
+    const rows = types.map((t, i) => ({ t, r: outRes[i] }))
+      .filter((x) => x.r.status === "fulfilled")
+      .map(({ t, r }) => ({
+        research_id: research.id,
+        user_id: user.id,
+        type: t,
+        content: { ...(r as PromiseFulfilledResult<Record<string, unknown>>).value, suggested_sectors: meta?.suggested_sectors ?? [] },
+      }));
     if (!rows.length) throw new Error("لم تُولد أي مخرجات");
     const { error: insErr } = await admin.from("outputs").insert(rows);
     if (insErr) throw new Error(insErr.message);
 
     await admin.storage.from("papers").remove([path]);
-    await admin.from("research").update({ status: "done", file_deleted: true, error: null, name_check: nameMatch, verified: nameMatch === "match" }).eq("id", research.id);
+    const note = failedTypes.length
+      ? `تعذّر توليد: ${failedTypes.map((t) => TYPE_LABEL[t]).join("، ")} بسبب ازدحام خدمة Google. يمكنك رفع البحث مرة أخرى واختيارها فقط.`
+      : null;
+    await admin.from("research").update({ status: "done", file_deleted: true, error: note, name_check: nameMatch, verified: nameMatch === "match" }).eq("id", research.id);
     return json({ ok: true, count: rows.length });
   } catch (e) {
     // الخصوصية أولاً: نحذف الملف حتى عند الفشل
