@@ -147,6 +147,8 @@ function show(type) {
 
 async function load() {
   const { data: r, error } = await sb.from("research").select("*, outputs(*)").eq("id", id).maybeSingle();
+  // خطأ اتصال مؤقت أثناء المتابعة: نعيد المحاولة بهدوء بدل إظهار رسالة خاطئة
+  if (error && pollTimer) { pollTimer = setTimeout(load, 5000); return; }
   if (error || !r) { state.innerHTML = `<div class="alert err">البحث غير موجود أو ليس لديك صلاحية عليه.</div>`; delBtn.classList.add("hidden"); return; }
 
   document.title = `${r.title} — جَنى`;
@@ -156,6 +158,12 @@ async function load() {
     ${verifyBadge(r)}
     ${r.file_deleted ? ` · <span class="muted">🔒 ملف البحث حُذف بعد المعالجة</span>` : ""}`;
 
+  if ((r.status === "uploaded" || r.status === "processing") && Date.now() - new Date(r.created_at).getTime() > 4 * 60 * 1000) {
+    // علِق البحث (انقطعت الخدمة مثلاً): نطلب حذف ملفه وإتاحة إعادة المحاولة
+    await sb.functions.invoke("generate", { body: { research_id: id, cleanup: true } }).catch(() => {});
+    pollTimer = setTimeout(load, 1500);
+    return;
+  }
   if (r.status === "uploaded" || r.status === "processing") {
     state.innerHTML = `<div class="card empty"><div class="spinner"></div><h3>جارٍ تحويل البحث… ✨</h3><p class="muted">تتحدث الصفحة تلقائياً عند الانتهاء.</p></div>`;
     clearTimeout(pollTimer); pollTimer = setTimeout(load, 5000);

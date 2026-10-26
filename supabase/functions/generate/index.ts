@@ -104,7 +104,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-async function callGemini(pdfB64: string, types: OutType[], audience: string | null, ownerName: string) {
+async function callGemini(pdfB64: string, types: OutType[], audience: string | null, ownerName: string, deadline: number) {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new Error("مفتاح Gemini غير مضاف بعد");
 
@@ -147,19 +147,30 @@ async function callGemini(pdfB64: string, types: OutType[], audience: string | n
   // نجرب أكثر من نموذج، ونعيد المحاولة تلقائياً عند ازدحام خوادم Google
   const models = [Deno.env.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"].filter(Boolean) as string[];
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const payload = JSON.stringify(body);
   let busy = false, lastErr = "";
+  outer:
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify(body),
-      });
+      // لا نتجاوز المهلة المسموحة للخدمة حتى نضمن حذف الملف دائماً
+      const left = deadline - Date.now();
+      if (left < 20000) { busy = true; lastErr = "time budget exceeded"; break outer; }
+      let res: Response;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: payload,
+          signal: AbortSignal.timeout(left - 8000),
+        });
+      } catch (_e) {
+        busy = true; lastErr = "request timed out"; break outer;
+      }
       if (res.status === 404) { lastErr = `model ${model} not found`; break; }
       const data = await res.json().catch(() => ({}));
       if ([429, 500, 503, 504].includes(res.status)) {
         busy = true; lastErr = data?.error?.message ?? `HTTP ${res.status}`;
-        if (attempt === 0) await sleep(4000);
+        if (attempt === 0 && deadline - Date.now() > 30000) await sleep(3000);
         continue;
       }
       if (!res.ok) throw new Error(data?.error?.message ?? `Gemini error ${res.status}`);
@@ -186,8 +197,22 @@ Deno.serve(async (req) => {
   if (!user) return json({ error: "غير مسجل الدخول" }, 401);
 
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { research_id } = await req.json().catch(() => ({}));
+  const started = Date.now();
+  const { research_id, cleanup } = await req.json().catch(() => ({}));
   if (!research_id) return json({ error: "رقم البحث مفقود" }, 400);
+
+  // تنظيف بحث علِق في المعالجة (مثلاً إذا انقطعت الخدمة): نحذف ملفه ونسمح بإعادة المحاولة
+  if (cleanup) {
+    const { data: r } = await admin.from("research").select("id,status,created_at")
+      .eq("id", research_id).eq("user_id", user.id).maybeSingle();
+    if (r && ["uploaded", "processing"].includes(r.status) && Date.now() - new Date(r.created_at).getTime() > 4 * 60 * 1000) {
+      await admin.storage.from("papers").remove([`${user.id}/${r.id}.pdf`]);
+      await admin.from("research").update({ status: "failed", file_deleted: true,
+        error: "استغرقت المعالجة وقتاً أطول من المسموح (غالباً بسبب ازدحام خدمة Google أو كِبر حجم الملف). حذفنا الملف، جرّب مرة أخرى." }).eq("id", r.id);
+      return json({ ok: true, cleaned: true });
+    }
+    return json({ ok: true, cleaned: false });
+  }
 
   const { data: research } = await admin.from("research").select("*")
     .eq("id", research_id).eq("user_id", user.id).maybeSingle();
@@ -206,7 +231,7 @@ Deno.serve(async (req) => {
     const b64 = toBase64(new Uint8Array(await file.arrayBuffer()));
 
     const { data: profile } = await admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-    const result = await callGemini(b64, types, research.target_audience ?? null, profile?.full_name ?? "");
+    const result = await callGemini(b64, types, research.target_audience ?? null, profile?.full_name ?? "", started + 115000);
     const nameMatch = result.author_check?.name_match ?? "unclear";
     if (nameMatch === "no_match") {
       await admin.from("research").update({ name_check: "no_match" }).eq("id", research.id);
