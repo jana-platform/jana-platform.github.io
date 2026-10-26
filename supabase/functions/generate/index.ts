@@ -144,25 +144,33 @@ async function callGemini(pdfB64: string, types: OutType[], audience: string | n
     },
   };
 
-  const models = [Deno.env.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash"].filter(Boolean) as string[];
-  let lastErr = "";
+  // نجرب أكثر من نموذج، ونعيد المحاولة تلقائياً عند ازدحام خوادم Google
+  const models = [Deno.env.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"].filter(Boolean) as string[];
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let busy = false, lastErr = "";
   for (const model of models) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 404) { lastErr = `model ${model} not found`; continue; }
-    const data = await res.json();
-    if (!res.ok) {
-      if (res.status === 429) throw new Error("تم تجاوز الحد المجاني المؤقت، حاول بعد دقيقة");
-      throw new Error(data?.error?.message ?? `Gemini error ${res.status}`);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 404) { lastErr = `model ${model} not found`; break; }
+      const data = await res.json().catch(() => ({}));
+      if ([429, 500, 503, 504].includes(res.status)) {
+        busy = true; lastErr = data?.error?.message ?? `HTTP ${res.status}`;
+        if (attempt === 0) await sleep(4000);
+        continue;
+      }
+      if (!res.ok) throw new Error(data?.error?.message ?? `Gemini error ${res.status}`);
+      const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("");
+      if (!text) { lastErr = "empty response"; break; }
+      return JSON.parse(text);
     }
-    const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("");
-    if (!text) throw new Error("لم يرجع الذكاء الاصطناعي أي نص");
-    return JSON.parse(text);
   }
-  throw new Error(lastErr || "تعذر الوصول إلى نموذج Gemini");
+  console.error("gemini failed:", lastErr);
+  if (busy) throw new Error("خدمة الذكاء الاصطناعي من Google مزدحمة حالياً (ضغط مؤقت على خوادمها). جرّب مرة أخرى بعد بضع دقائق.");
+  throw new Error("تعذّر الوصول إلى خدمة الذكاء الاصطناعي حالياً. جرّب مرة أخرى لاحقاً.");
 }
 
 Deno.serve(async (req) => {
