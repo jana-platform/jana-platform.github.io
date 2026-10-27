@@ -36,9 +36,10 @@ const SCHEMAS: Record<OutType, unknown> = {
         },
       },
       target_audience: S("الجمهور المستهدف من الموجز"),
+      limitations: A("حدود الدراسة كما وردت في البحث أو تُفهم منه بوضوح: الحدود الموضوعية والمكانية والزمانية والبشرية، وحجم العينة ونوعها، والمنهج؛ مع التنبيه إلى ما لا يصح تعميم النتائج عليه (2-5 نقاط)"),
       conclusion: S("خاتمة قصيرة"),
     },
-    required: ["title", "executive_summary", "problem", "key_findings", "recommendations", "target_audience", "conclusion"],
+    required: ["title", "executive_summary", "problem", "key_findings", "recommendations", "target_audience", "limitations", "conclusion"],
   },
   poster: {
     type: "OBJECT",
@@ -60,8 +61,9 @@ const SCHEMAS: Record<OutType, unknown> = {
       linkedin_post: S("منشور مهني لـ LinkedIn"),
       instagram_caption: S("نص منشور إنستقرام قصير وجذاب"),
       hashtags: A("وسوم مناسبة بدون علامة #"),
+      limitations: S("تنبيه مختصر وواضح بحدود الدراسة (العينة، المكان، الزمن، المنهج) بلغة مبسطة، لإضافته مع المنشورات حتى لا تُعمَّم النتائج خارج نطاقها (جملة أو جملتان)"),
     },
-    required: ["x_thread", "linkedin_post", "instagram_caption", "hashtags"],
+    required: ["x_thread", "linkedin_post", "instagram_caption", "hashtags", "limitations"],
   },
   training_kit: {
     type: "OBJECT",
@@ -139,7 +141,7 @@ async function callModel(pdfB64: string, prompt: string, schema: unknown, deadli
       if (!res.ok) { lastErr = `${model} ${res.status}: ${data?.error?.message ?? ""}`.slice(0, 200); break; }
       const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("");
       if (!text) { lastErr = `${model} empty`; break; }
-      try { return JSON.parse(text); } catch { lastErr = `${model} bad json`; break; }
+      try { return { value: JSON.parse(text), model: (data?.modelVersion as string) || model }; } catch { lastErr = `${model} bad json`; break; }
     }
   }
   throw new Error("BUSY:" + lastErr);
@@ -243,7 +245,7 @@ Deno.serve(async (req) => {
     ]);
     outRes.forEach((r, i) => { if (r.status === "rejected") console.error("output failed", types[i], String(r.reason).slice(0, 200)); });
 
-    const meta = metaRes.status === "fulfilled" ? metaRes.value : null;
+    const meta = metaRes.status === "fulfilled" ? metaRes.value.value : null;
     const nameMatch = meta?.name_match ?? "unclear";
     if (nameMatch === "no_match") {
       await admin.from("research").update({ name_check: "no_match" }).eq("id", research.id);
@@ -259,7 +261,8 @@ Deno.serve(async (req) => {
         research_id: research.id,
         user_id: user.id,
         type: t,
-        content: { ...(r as PromiseFulfilledResult<Record<string, unknown>>).value, suggested_sectors: meta?.suggested_sectors ?? [] },
+        content: { ...(r as PromiseFulfilledResult<{ value: Record<string, unknown>; model: string }>).value.value, suggested_sectors: meta?.suggested_sectors ?? [] },
+        model: (r as PromiseFulfilledResult<{ value: Record<string, unknown>; model: string }>).value.model,
       }));
     if (!rows.length) throw new Error("لم تُولد أي مخرجات");
     const { error: insErr } = await admin.from("outputs").insert(rows);

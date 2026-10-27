@@ -1,0 +1,3 @@
+-- مطبّق على مشروع Supabase (jana). نسخة مرجعية للتوثيق.
+-- outputs.model: اسم نموذج Gemini الفعلي الذي أنتج كل مخرج (من modelVersion)
+-- admin_model_stats(): عدد المخرجات حسب النموذج (للإدارة فقط)

@@ -37,6 +37,7 @@
       </div>
       <div class="grid cols-2" style="margin-bottom:16px">
         <div class="card chart-card"><h3>الجهات الأكثر أثراً</h3><div class="sub">عدد مرات التواصل المسجّلة (وبجانبها مرات التطبيق)</div><div id="cImpactOrgs"></div></div>
+        <div class="card chart-card"><h3>🤖 نماذج الذكاء الاصطناعي المستخدمة</h3><div class="sub">عدد المخرجات التي أنتجها كل نموذج</div><div id="cModels"></div></div>
         <div class="card chart-card"><h3>👍 جودة المخرجات</h3><div class="sub">نسبة التقييمات الإيجابية لكل نوع منتج</div><div id="cRatings"></div><div id="cReasons" style="margin-top:14px"></div></div>
       </div>
 
@@ -154,6 +155,8 @@ async function loadStats() {
     cReasons.innerHTML = im.down_reasons.length ? `<div class="small muted" style="margin-bottom:6px">أسباب التقييم السلبي:</div>` : "";
     if (im.down_reasons.length) { const d = document.createElement("div"); cReasons.append(d); hbars(d, im.down_reasons.map((x) => ({ label: x.name, n: x.n }))); }
   }
+  const { data: models } = await sb.rpc("admin_model_stats");
+  hbars(cModels, (models || []).map((x) => ({ label: x.name, n: x.n })));
   hbars(cOrgs, s.top_orgs.map((x) => ({ label: x.name, n: x.clicks, extra: `${fmt(x.views)} زيارة للصفحة` })), "لم يضغط أحد على الجهات بعد");
   return true;
 }

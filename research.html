@@ -58,6 +58,7 @@ const RENDER = {
       <h3>التوصيات</h3>
       ${(c.recommendations || []).map((r, i) => `<div class="rec"><b>${i + 1}.</b> ${esc(r.text)}<br><span class="target">الجهة المعنية: ${esc(r.target)}</span></div>`).join("")}
       <h3>الجمهور المستهدف</h3><p>${esc(c.target_audience)}</p>
+      ${c.limitations?.length ? `<h3>حدود الدراسة</h3><div class="limits">${list(c.limitations)}</div>` : ""}
       <h3>الخاتمة</h3><p>${esc(c.conclusion)}</p>
       ${signFor(currentVerified)}
     </article>`,
@@ -112,6 +113,8 @@ const RENDER = {
       <div class="pre">${esc(c.instagram_caption)}</div></div>
     <div class="social-card"><header><b># الوسوم</b><button class="btn ghost sm" data-copy="tags">نسخ</button></header>
       <div dir="auto">${esc(tags)}</div></div>
+    ${c.limitations ? `<div class="social-card limits"><header><b>⚠️ حدود الدراسة</b><button class="btn ghost sm" data-copy="lim">نسخ</button></header>
+      <div class="pre">${esc(c.limitations)}</div><div class="small muted" style="margin-top:6px">ننصح بإضافة هذا التنبيه مع منشوراتك حتى لا تُعمَّم النتائج خارج نطاقها.</div></div>` : ""}
     ${signFor(currentVerified)}</div>`;
   },
 };
@@ -119,11 +122,13 @@ const RENDER = {
 // ===== النص الخام للنسخ =====
 const bullets = (a) => (a || []).map((x) => "• " + x).join("\n");
 const PLAIN = {
-  policy_brief: (c) => `${c.title}\n\nالملخص التنفيذي:\n${c.executive_summary}\n\nالقضية:\n${c.problem}\n\nأبرز النتائج:\n${bullets(c.key_findings)}\n\nالتوصيات:\n${(c.recommendations || []).map((r, i) => `${i + 1}. ${r.text} (الجهة المعنية: ${r.target})`).join("\n")}\n\nالجمهور المستهدف:\n${c.target_audience}\n\nالخاتمة:\n${c.conclusion}`,
+  policy_brief: (c) => `${c.title}\n\nالملخص التنفيذي:\n${c.executive_summary}\n\nالقضية:\n${c.problem}\n\nأبرز النتائج:\n${bullets(c.key_findings)}\n\nالتوصيات:\n${(c.recommendations || []).map((r, i) => `${i + 1}. ${r.text} (الجهة المعنية: ${r.target})`).join("\n")}\n\nالجمهور المستهدف:\n${c.target_audience}${c.limitations?.length ? `\n\nحدود الدراسة:\n${bullets(c.limitations)}` : ""}\n\nالخاتمة:\n${c.conclusion}`,
   poster: (c) => `${c.title}\n\nالمقدمة:\n${c.introduction}\n\nالأهداف:\n${bullets(c.objectives)}\n\nالمنهجية:\n${c.methodology}\n\nأبرز النتائج:\n${bullets(c.results)}\n\nالخلاصة:\n${c.conclusion}\n\nكلمات مفتاحية: ${(c.keywords || []).join("، ")}`,
-  social: (c) => `سلسلة X:\n${(c.x_thread || []).map((t, i) => `${i + 1}/ ${t}`).join("\n\n")}\n\nLinkedIn:\n${c.linkedin_post}\n\nإنستقرام:\n${c.instagram_caption}\n\n${(c.hashtags || []).map((h) => "#" + h).join(" ")}`,
+  social: (c) => `سلسلة X:\n${(c.x_thread || []).map((t, i) => `${i + 1}/ ${t}`).join("\n\n")}\n\nLinkedIn:\n${c.linkedin_post}\n\nإنستقرام:\n${c.instagram_caption}\n\n${(c.hashtags || []).map((h) => "#" + h).join(" ")}${c.limitations ? `\n\nحدود الدراسة:\n${c.limitations}` : ""}`,
 };
 PLAIN.training_kit = (c) => `${c.title}\n\nالفئة المستهدفة: ${c.target_group}\nالمدة المقترحة: ${c.duration}\n\nالهدف العام:\n${c.general_objective}\n\nمبررات البرنامج:\n${c.rationale}\n\nنواتج التعلم:\n${bullets(c.learning_outcomes)}\n\nالجلسات التدريبية:\n${(c.sessions || []).map((x, i) => `\nالجلسة ${i + 1}: ${x.title} (${x.duration})\nالأهداف:\n${bullets(x.objectives)}\nالمحتوى:\n${bullets(x.content)}\nالأنشطة:\n${bullets(x.activities)}`).join("\n")}\n\nأساليب التقييم:\n${bullets(c.evaluation)}\n\nالمواد والأدوات:\n${bullets(c.materials)}\n\nإرشادات للمدرب:\n${c.trainer_notes}`;
+// اسم نموذج الذكاء الاصطناعي الذي أنتج المخرج (للشفافية وتوثيق النسخة)
+const modelLine = (o) => `<div class="model-line">🤖 أُنتج بواسطة: <span dir="ltr">${o.model ? esc(o.model) : "غير مسجّل (مخرج قديم)"}</span> · ${fmtDate(o.created_at)}</div>`;
 const signLine = () => `\n\n— ${SIGN_TEXT} · ${VERIFY_LABEL(currentVerified)} · ${SITE_URL}`;
 
 const SOCIAL_PART = {
@@ -131,6 +136,7 @@ const SOCIAL_PART = {
   li: (c) => c.linkedin_post,
   ig: (c) => c.instagram_caption,
   tags: (c) => (c.hashtags || []).map((h) => "#" + String(h).replace(/^#/, "").replace(/\s+/g, "_")).join(" "),
+  lim: (c) => c.limitations || "",
 };
 
 async function copy(text, btn) {
@@ -181,7 +187,7 @@ async function load() {
   const order = Object.keys(OUTPUT_TYPES);
   outputs = r.outputs.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
   tabs.innerHTML = outputs.map((o) => `<button type="button" data-t="${o.type}">${OUTPUT_TYPES[o.type].icon} ${OUTPUT_TYPES[o.type].label}</button>`).join("");
-  panels.innerHTML = outputs.map((o) => `<section data-t="${o.type}">${RENDER[o.type](o.content)}${rateBar(o)}</section>`).join("");
+  panels.innerHTML = outputs.map((o) => `<section data-t="${o.type}">${RENDER[o.type](o.content)}${modelLine(o)}${rateBar(o)}</section>`).join("");
   const { data: myRatings } = await sb.from("output_ratings").select("*").in("output_id", outputs.map((o) => o.id));
   (myRatings || []).forEach((x) => paintRating(x.output_id, x.rating, x.reasons));
   panels.addEventListener("click", onRateClick);
@@ -294,7 +300,7 @@ async function loadImpact() {
 
 copyBtn.addEventListener("click", () => {
   const o = outputs.find((x) => x.type === active);
-  if (o) copy(PLAIN[o.type](o.content) + signLine(), copyBtn);
+  if (o) copy(PLAIN[o.type](o.content) + signLine() + (o.model ? ` · النموذج: ${o.model}` : ""), copyBtn);
 });
 pdfBtn.addEventListener("click", () => window.print());
 
