@@ -345,6 +345,11 @@ dialog::backdrop { background: rgba(20, 17, 28, .55); }
     --bg: #fff; --surface: #fff; --ink: #241F35; --muted: #6A6482; --heading: #45367A; --line: #E6E0F2;
     --lav-50: #F8F6FC; --lav-100: #EFEAF9; --lav-200: #DDD4F2; --lav-400: #A794D9; --lav-600: #7059B3;
     --green-50: #EEF6F1; --green-600: #3E7F5A; --green-800: #275A3D; --poster-a: #45367A; --poster-b: #7059B3;
+    --lav-800: #45367A; --accent: #7059B3; --on-accent: #FFFFFF;
+    --warn-bg: #FFF7E3; --warn-ink: #7A5A10; --warn-line: #F0E2B6;
+    --danger: #B3364A; --danger-bg: #FBEDEF; --danger-line: #EBC4CB;
+    --band: #45367A; --band-ink: #FFFFFF; --band-link: #DDD4F2; --bar: #7059B3; --track: #EFEAF9;
+    color-scheme: light;
   }
   body { background: #fff; }
   .beta-bar, .site-header, .site-footer, .no-print, .tabs, .output-actions, .page-head .btn { display: none !important; }
