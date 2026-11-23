@@ -74,3 +74,6 @@ begin
   );
 end $$;
 grant execute on function public.admin_needs_stats() to authenticated;
+
+-- الزائر غير المسجّل يحتاج تنفيذ is_admin داخل سياسة القراءة (ترجع false له)
+grant execute on function public.is_admin() to anon;
