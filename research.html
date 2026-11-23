@@ -35,6 +35,8 @@
         <button class="btn ghost sm" id="pdfBtn">⬇️ تحميل PDF</button>
       </div>
       <div id="panels"></div>
+      <div class="card suggest-box no-print" id="assessBox"></div>
+      <div class="card suggest-box no-print" id="matchBox"></div>
       <div class="card suggest-box no-print" id="impactBox"></div>
       <div class="card suggest-box no-print" id="sectorsBox"></div>
     </div>
@@ -200,6 +202,7 @@ async function load() {
 
   const sectors = [...new Set(outputs.flatMap((o) => o.content.suggested_sectors || []))].filter((s) => SECTORS[s]);
   loadImpact();
+  renderAssessment(r);
   sectorsBox.innerHTML = `<h3>🤝 جهات مقترحة يمكن أن تستفيد من بحثك</h3>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${sectors.map((s) => `<span class="chip">${SECTORS[s]}</span>`).join("")}</div>
     <div id="orgList" class="grid cols-3"><div class="muted small">جارٍ البحث عن الجهات المناسبة…</div></div>
@@ -213,6 +216,83 @@ async function load() {
   } else {
     orgList.innerHTML = '<div class="muted small">لم يحدد الذكاء الاصطناعي قطاعات لهذا البحث.</div>';
   }
+}
+
+// ===== تقييم قابلية التطبيق والأثر المتوقع + المطابقة مع احتياجات الجهات =====
+const CRIT = {
+  clarity: "وضوح النتائج والتوصيات", feasibility: "إمكانية التنفيذ محلياً", need: "حاجة المجتمع والجهات",
+  resources: "قلة الموارد المطلوبة", readiness: "جاهزية المستفيدين",
+};
+const LEVEL = { high: "مرتفع", medium: "متوسط", low: "محدود" };
+const HORIZON = { short: "قصير المدى (أقل من سنة)", medium: "متوسط المدى (1–3 سنوات)", long: "طويل المدى (أكثر من 3 سنوات)" };
+const SCORE_WORD = ["", "ضعيفة", "محدودة", "متوسطة", "عالية", "عالية جداً"];
+const dots = (n) => `<span class="dots" aria-label="${n} من 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
+let assessing = false;
+
+async function runAssessment(r, manual) {
+  if (assessing) return; assessing = true;
+  assessBox.innerHTML = `<h3>🎯 قابلية التطبيق والأثر المتوقع</h3><div class="empty"><div class="spinner"></div>يقيّم الذكاء الاصطناعي بحثك ويطابقه مع احتياجات الجهات… (قرابة نصف دقيقة)</div>`;
+  matchBox.classList.add("hidden");
+  const { data, error } = await sb.functions.invoke("assess", { body: { research_id: r.id } });
+  assessing = false;
+  if (error || data?.error) {
+    let m = data?.error;
+    try { m = m || (await error.context.json()).error; } catch {}
+    assessBox.innerHTML = `<h3>🎯 قابلية التطبيق والأثر المتوقع</h3><div class="alert warn">تعذّر التقييم الآن: ${esc(m || "خطأ في الاتصال")}</div><button class="btn ghost sm" id="reAssess">إعادة المحاولة</button>`;
+    reAssess.onclick = () => runAssessment(r, true);
+    return;
+  }
+  const { data: fresh } = await sb.from("research").select("id,assessment").eq("id", r.id).maybeSingle();
+  renderAssessment({ ...r, assessment: fresh?.assessment }, true);
+}
+
+async function renderAssessment(r, justRan) {
+  const a = r.assessment;
+  if (!a) { if (!justRan) runAssessment(r); return; }
+  const ei = a.expected_impact || {};
+  const ul = (x) => `<ul>${(x || []).map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
+  assessBox.innerHTML = `
+    <h3>🎯 قابلية التطبيق والأثر المتوقع</h3>
+    <div class="assess-head">
+      <div class="score-ring" style="--p:${a.applicability_score * 20}"><div><b>${a.applicability_score}/5</b><span>${SCORE_WORD[a.applicability_score] || ""}</span></div></div>
+      <div style="flex:1;min-width:220px">
+        <div><b>قابلية التطبيق: ${SCORE_WORD[a.applicability_score] || ""}</b> · الأثر المتوقع: <span class="lvl ${ei.level}">${LEVEL[ei.level] || "—"}</span></div>
+        <p class="muted small" style="margin:6px 0 0">${esc(a.applicability_summary)}</p>
+      </div>
+    </div>
+    ${(a.criteria || []).map((c) => `<div class="crit"><b>${CRIT[c.key] || esc(c.key)}</b>${dots(c.score)}<span class="note small muted">${esc(c.note)}</span></div>`).join("")}
+    <div class="impact-grid">
+      <div><h4>🌱 الأثر المتوقع</h4><p class="small" style="margin:0 0 6px">${esc(ei.description)}</p><span class="small muted">⏳ ${HORIZON[ei.time_horizon] || ""}</span></div>
+      <div><h4>👥 المستفيدون</h4>${ul(ei.beneficiaries)}</div>
+      <div><h4>📏 مؤشرات قياس الأثر</h4>${ul(ei.indicators)}</div>
+      <div><h4>✅ شروط نجاح التطبيق</h4>${ul(a.conditions)}</div>
+      <div><h4>⚠️ مخاطر وعوائق محتملة</h4>${ul(a.risks)}</div>
+    </div>
+    <div class="model-line" style="max-width:none;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+      <span>🤖 تقدير آلي بواسطة <span dir="ltr">${esc(a.model || "")}</span> · ${fmtDate(a.assessed_at)} — استرشادي ولا يغني عن تقييم المختصين.</span>
+      <button class="btn ghost sm" id="reAssess">🔄 تحديث التقييم والمطابقة</button>
+    </div>`;
+  reAssess.onclick = () => runAssessment(r, true);
+  renderMatches(r, a);
+}
+
+async function renderMatches(r, a) {
+  matchBox.classList.remove("hidden");
+  const { data: m } = await sb.from("need_matches").select("score,reason,needs(id,org_name,title,description,city,need_contacts(contact_name,email,phone))")
+    .eq("research_id", r.id).order("score", { ascending: false });
+  const items = (m || []).filter((x) => x.needs);
+  matchBox.innerHTML = `<h3>🧩 احتياجات جهات يطابقها بحثك</h3>
+    <p class="muted small">قارن الذكاء الاصطناعي بحثك مع ${(a.needs_considered || 0).toLocaleString("ar-SA")} احتياجاً سجّلته الجهات في جَنى، ويعرض هنا ما تطابق بدرجة 50% فأكثر.</p>
+    ${items.length ? items.map((x) => {
+      const n = x.needs, c = Array.isArray(n.need_contacts) ? n.need_contacts[0] : n.need_contacts;
+      return `<div class="match-item">
+        <div class="top"><b>${esc(n.title)}</b><span class="match-pct">تطابق ${x.score}%</span></div>
+        <div class="small muted">🏢 ${esc(n.org_name)}${n.city ? ` · 📍 ${esc(n.city)}` : ""}</div>
+        <p class="small" style="margin:6px 0">💡 ${esc(x.reason)}</p>
+        ${c ? `<div class="small">📨 للتواصل: ${esc(c.contact_name)} · <a href="mailto:${esc(c.email)}" dir="ltr">${esc(c.email)}</a>${c.phone ? ` · <span dir="ltr">${esc(c.phone)}</span>` : ""}</div>` : ""}
+      </div>`;
+    }).join("") : `<div class="muted small">${a.needs_considered ? "لا يوجد احتياج مسجّل يطابق بحثك حالياً." : "لا توجد احتياجات معتمدة في المنصة بعد."} نحدّث المطابقة كلما سجّلت جهات جديدة احتياجاتها؛ اضغط «تحديث التقييم والمطابقة» لاحقاً.</div>`}
+    <p class="small" style="margin:12px 0 0"><a href="needs.html">تصفّح كل احتياجات الجهات ←</a></p>`;
 }
 
 // ===== تقييم المخرجات =====

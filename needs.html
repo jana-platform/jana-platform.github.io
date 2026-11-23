@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>احتياجات الجهات — جَنى</title>
+<meta name="description" content="جهات مجتمعية تسجّل احتياجاتها البحثية في جَنى، والمنصة تطابقها مع الأبحاث المناسبة.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/hayyakum.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<main>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1>احتياجات الجهات</h1>
+        <p class="muted" style="margin:0">جهات حكومية وغير ربحية وخاصة تسجّل التحديات التي تبحث لها عن حلول، وجَنى تطابقها تلقائياً مع الأبحاث المناسبة.</p>
+      </div>
+      <a class="btn green" href="#register">➕ سجّل احتياج جهتك</a>
+    </div>
+
+    <div class="how-match card">
+      <div><span class="flow-dot l">١</span><b>الجهة تسجّل احتياجها</b><span class="small muted">مشكلة أو تحدٍّ تبحث له عن حل مبني على البحث العلمي</span></div>
+      <div><span class="flow-dot l">٢</span><b>الإدارة تراجعه وتعتمده</b><span class="small muted">للتأكد من جدّيته قبل نشره</span></div>
+      <div><span class="flow-dot g">٣</span><b>المطابقة الذكية</b><span class="small muted">يقارن الذكاء الاصطناعي كل رسالة محوّلة مع الاحتياجات ويعطي درجة تطابق وسبباً</span></div>
+      <div><span class="flow-dot g">٤</span><b>الباحث يتواصل مع الجهة</b><span class="small muted">تظهر بيانات التواصل للباحثين المسجّلين فقط</span></div>
+    </div>
+
+    <div class="filters" id="filters"></div>
+    <p class="small muted" id="count"></p>
+    <div class="grid cols-2" id="list"><div class="card empty"><div class="spinner"></div>جارٍ التحميل…</div></div>
+
+    <div class="card" id="register" style="margin-top:32px;scroll-margin-top:90px">
+      <h2 style="margin-top:0">سجّل احتياج جهتك</h2>
+      <p class="muted small">لا تحتاج حساباً. يُراجَع الاحتياج من إدارة المنصة قبل نشره، وبيانات التواصل لا تظهر إلا للباحثين المسجّلين.</p>
+      <div id="msg" class="hidden"></div>
+      <form id="needForm">
+        <div class="grid cols-2" style="gap:0 16px">
+          <div class="form-row"><label class="lbl" for="fOrg">اسم الجهة</label><input id="fOrg" type="text" list="orgsList" required minlength="2" maxlength="150"><datalist id="orgsList"></datalist><div class="hint">إن كانت جهتك في الدليل اخترها من القائمة.</div></div>
+          <div class="form-row"><label class="lbl" for="fCity">المدينة</label><input id="fCity" type="text" maxlength="80" placeholder="مثال: جدة"></div>
+        </div>
+        <div class="form-row"><label class="lbl" for="fTitle">عنوان الاحتياج</label><input id="fTitle" type="text" required minlength="5" maxlength="200" placeholder="مثال: رفع دافعية طلاب المرحلة المتوسطة نحو القراءة"></div>
+        <div class="form-row"><label class="lbl" for="fDesc">وصف الاحتياج</label><textarea id="fDesc" rows="5" required minlength="20" maxlength="3000" placeholder="ما المشكلة؟ ومن يتأثر بها؟ وما الذي جرّبتموه؟ وما نوع الحل أو المخرج الذي تبحثون عنه (برنامج تدريبي، سياسة، أداة…)؟"></textarea></div>
+        <div class="form-row"><label class="lbl" for="fBen">الفئة المستفيدة</label><input id="fBen" type="text" maxlength="300" placeholder="مثال: معلمات اللغة العربية وطالبات المرحلة المتوسطة"></div>
+        <div class="form-row"><label class="lbl">القطاع</label><div class="sector-checks" id="fSectors"></div></div>
+        <h3>بيانات التواصل <span class="small muted">(تظهر للباحثين المسجّلين فقط)</span></h3>
+        <div class="grid cols-3" style="gap:0 16px">
+          <div class="form-row"><label class="lbl" for="fName">اسم المسؤول</label><input id="fName" type="text" required minlength="2" maxlength="120"></div>
+          <div class="form-row"><label class="lbl" for="fEmail">الإيميل</label><input id="fEmail" type="email" dir="ltr" required maxlength="200"></div>
+          <div class="form-row"><label class="lbl" for="fPhone">الجوال (اختياري)</label><input id="fPhone" type="text" dir="ltr" maxlength="30"></div>
+        </div>
+        <label class="check"><input type="checkbox" required><span>أقرّ بأني مخوّل بتسجيل هذا الاحتياج نيابةً عن الجهة، وأوافق على ظهوره للعموم وظهور بيانات التواصل للباحثين المسجّلين.</span></label>
+        <button class="btn green" style="margin-top:18px" type="submit" id="sendBtn">إرسال للمراجعة</button>
+      </form>
+    </div>
+  </div>
+</main>
+<script>
+let all = [], sector = "", session = null, contacts = {};
+
+function needCard(n) {
+  const c = contacts[n.id];
+  const contact = session
+    ? (c ? `<div class="need-contact small">👤 ${esc(c.contact_name)} · <a href="mailto:${esc(c.email)}" dir="ltr">${esc(c.email)}</a>${c.phone ? ` · <span dir="ltr">${esc(c.phone)}</span>` : ""}</div>` : "")
+    : `<div class="need-contact small muted">🔒 <a href="auth.html">سجّل دخولك</a> لعرض بيانات التواصل.</div>`;
+  return `<article class="card need-card">
+    <div class="small muted">🏢 ${esc(n.org_name)}${n.city ? ` · 📍 ${esc(n.city)}` : ""} · ${fmtDate(n.created_at)}</div>
+    <h3>${esc(n.title)}</h3>
+    <p class="muted small" style="white-space:pre-line">${esc(n.description)}</p>
+    ${n.beneficiaries ? `<p class="small"><b>الفئة المستفيدة:</b> ${esc(n.beneficiaries)}</p>` : ""}
+    <div class="org-tags">${(n.sectors || []).map((s) => `<span class="chip">${SECTORS[s] || esc(s)}</span>`).join("")}</div>
+    ${contact}
+  </article>`;
+}
+
+function draw() {
+  const items = all.filter((n) => !sector || (n.sectors || []).includes(sector));
+  count.textContent = `${items.length} احتياج مفتوح`;
+  list.innerHTML = items.length ? items.map(needCard).join("")
+    : `<div class="card empty">لا توجد احتياجات منشورة${sector ? " في هذا القطاع" : ""} بعد. كن أول جهة تسجّل احتياجها 👇</div>`;
+}
+
+filters.innerHTML = [["", "الكل"], ...Object.entries(SECTORS)]
+  .map(([k, v]) => `<button type="button" class="chip l ${k === sector ? "on" : ""}" data-s="${k}">${v}</button>`).join("");
+filters.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-s]"); if (!b) return;
+  sector = b.dataset.s;
+  filters.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+  draw();
+});
+fSectors.innerHTML = Object.entries(SECTORS).map(([k, v]) => `<label class="check"><input type="checkbox" value="${k}"><span>${v}</span></label>`).join("");
+
+let orgs = [];
+needForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const sectors = [...fSectors.querySelectorAll("input:checked")].map((x) => x.value);
+  if (!sectors.length) return showAlert(msg, "err", "اختر قطاعاً واحداً على الأقل.");
+  sendBtn.disabled = true;
+  const id = crypto.randomUUID();
+  const name = fOrg.value.trim();
+  const org = orgs.find((o) => o.name === name);
+  const { error } = await sb.from("needs").insert({
+    id, org_id: org?.id || null, org_name: name, sectors,
+    title: fTitle.value.trim(), description: fDesc.value.trim(),
+    beneficiaries: fBen.value.trim() || null, city: fCity.value.trim() || null,
+  });
+  const res2 = error ? null : await sb.from("need_contacts").insert({
+    need_id: id, contact_name: fName.value.trim(), email: fEmail.value.trim(), phone: fPhone.value.trim() || null,
+  });
+  sendBtn.disabled = false;
+  if (error || res2?.error) return showAlert(msg, "err", "تعذّر الإرسال، تأكد من تعبئة الحقول بشكل صحيح ثم حاول مرة أخرى.");
+  needForm.reset();
+  showAlert(msg, "ok", "✓ وصلنا احتياجكم، وسيُنشر بعد مراجعة الإدارة. شكراً لكم 🌱");
+  msg.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+(async () => {
+  session = await renderChrome("needs");
+  const [{ data, error }, { data: o }] = await Promise.all([
+    sb.from("needs").select("*").eq("status", "approved").order("created_at", { ascending: false }),
+    sb.from("organizations").select("id,name").order("name"),
+  ]);
+  orgs = o || [];
+  orgsList.innerHTML = orgs.map((x) => `<option value="${esc(x.name)}">`).join("");
+  if (error) { list.innerHTML = `<div class="alert err">تعذّر تحميل الاحتياجات.</div>`; return; }
+  all = data || [];
+  if (session && all.length) {
+    const { data: cs } = await sb.from("need_contacts").select("*").in("need_id", all.map((n) => n.id));
+    (cs || []).forEach((c) => (contacts[c.need_id] = c));
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

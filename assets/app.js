@@ -73,7 +73,8 @@ function fmtDate(d) {
 // رسم الهيدر والفوتر وشريط التجربة
 async function renderChrome(active) {
   const { data: { session } } = await sb.auth.getSession();
-  const dir = `<a href="directory.html" class="${active === "directory" ? "active" : ""}">دليل الجهات</a>`;
+  const dir = `<a href="directory.html" class="${active === "directory" ? "active" : ""}">دليل الجهات</a>
+    <a href="needs.html" class="${active === "needs" ? "active" : ""}">احتياجات الجهات</a>`;
   const themeBtn = `<button class="linklike theme-btn" id="themeBtn" title="الوضع الليلي / النهاري" aria-label="تبديل الوضع الليلي">${document.documentElement.dataset.theme === "dark" ? "☀️" : "🌙"}</button>`;
   const links = session
     ? `<a href="dashboard.html" class="${active === "dashboard" ? "active" : ""}">أبحاثي</a>
@@ -96,7 +97,7 @@ async function renderChrome(active) {
   document.body.insertAdjacentHTML("beforeend", `
     <footer class="site-footer"><div class="container">
       <span>© ${new Date().getFullYear()} جَنى — لتثمير البحث العلمي · نسخة تجريبية</span>
-      <span><a href="privacy.html">الخصوصية</a></span>
+      <span><a href="needs.html#register">سجّل احتياج جهتك</a> · <a href="privacy.html#tech">التقنيات المستخدمة</a> · <a href="privacy.html">الخصوصية</a></span>
     </div></footer>`);
 
   document.getElementById("themeBtn").addEventListener("click", toggleTheme);

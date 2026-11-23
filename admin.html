@@ -56,6 +56,19 @@
         <div id="cOrgs"></div>
       </div>
 
+      <!-- احتياجات الجهات والتقييم -->
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card chart-card"><h3>🧩 احتياجات الجهات والمطابقة</h3><div class="sub">حالة الاحتياجات المسجّلة وعدد المطابقات مع الأبحاث</div><div id="cNeeds"></div></div>
+        <div class="card chart-card"><h3>🎯 قابلية التطبيق والأثر المتوقع</h3><div class="sub" id="assessSub">توزيع الأبحاث حسب مستوى الأثر المتوقع</div><div id="cLevels"></div></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="page-head" style="margin-bottom:12px">
+          <div><h3 style="margin:0">مراجعة احتياجات الجهات</h3><div class="muted small">الاحتياج لا يظهر للعموم ولا يدخل المطابقة إلا بعد اعتماده.</div></div>
+          <div class="filters" id="needFilter" style="margin:0"></div>
+        </div>
+        <div id="needAdminList"></div>
+      </div>
+
       <!-- إدارة الجهات -->
       <div class="card" style="margin-top:16px">
         <div class="page-head" style="margin-bottom:12px">
@@ -161,6 +174,58 @@ async function loadStats() {
   return true;
 }
 
+// ===== احتياجات الجهات =====
+const NEED_STATUS = { pending: "بانتظار المراجعة", approved: "معتمد ومنشور", closed: "مغلق", rejected: "مرفوض" };
+let needs = [], needView = "pending";
+needFilter.innerHTML = Object.entries(NEED_STATUS).map(([k, v]) => `<button type="button" class="chip l ${k === needView ? "on" : ""}" data-ns="${k}">${v}</button>`).join("");
+needFilter.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-ns]"); if (!b) return;
+  needView = b.dataset.ns;
+  needFilter.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+  drawNeeds();
+});
+function drawNeeds() {
+  const list = needs.filter((n) => n.status === needView);
+  needAdminList.innerHTML = list.map((n) => {
+    const c = Array.isArray(n.need_contacts) ? n.need_contacts[0] : n.need_contacts;
+    const btn = (st, label, cls = "ghost") => n.status === st ? "" : `<button class="btn ${cls} sm" data-need="${n.id}" data-st="${st}">${label}</button>`;
+    return `<div class="match-item">
+      <div class="top"><b>${esc(n.title)}</b><span class="need-status ${n.status}">${NEED_STATUS[n.status]}</span></div>
+      <div class="small muted">🏢 ${esc(n.org_name)}${n.city ? ` · 📍 ${esc(n.city)}` : ""} · ${fmtDate(n.created_at)} · ${(n.sectors || []).map((x) => SECTORS[x] || x).join("، ")}</div>
+      <p class="small" style="white-space:pre-line;margin:6px 0">${esc(n.description)}</p>
+      ${n.beneficiaries ? `<div class="small"><b>المستفيدون:</b> ${esc(n.beneficiaries)}</div>` : ""}
+      ${c ? `<div class="small">📨 ${esc(c.contact_name)} · <span dir="ltr">${esc(c.email)}</span>${c.phone ? ` · <span dir="ltr">${esc(c.phone)}</span>` : ""}</div>` : ""}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${btn("approved", "✓ اعتماد ونشر", "green")}${btn("closed", "إغلاق (تمت تلبيته)")}${btn("rejected", "رفض")}</div>
+    </div>`;
+  }).join("") || '<div class="empty-chart">لا توجد احتياجات في هذه الحالة</div>';
+}
+needAdminList.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-need]"); if (!b) return;
+  b.disabled = true;
+  await sb.from("needs").update({ status: b.dataset.st }).eq("id", b.dataset.need);
+  await loadNeeds();
+});
+async function loadNeeds() {
+  const [{ data }, { data: ns }] = await Promise.all([
+    sb.from("needs").select("*, need_contacts(*)").order("created_at", { ascending: false }),
+    sb.rpc("admin_needs_stats"),
+  ]);
+  needs = data || [];
+  drawNeeds();
+  if (ns) {
+    const st = ns.by_status || {};
+    hbars(cNeeds, [
+      { label: "⏳ بانتظار المراجعة", n: st.pending || 0 },
+      { label: "✅ معتمدة ومنشورة", n: st.approved || 0 },
+      { label: "🔒 مغلقة (تمت تلبيتها)", n: st.closed || 0 },
+      { label: "🧩 مطابقات بحث ↔ احتياج", n: ns.matches || 0, extra: `${fmt(ns.matched_needs)} احتياج طابق بحثاً` },
+    ], "لم تسجّل أي جهة احتياجاً بعد");
+    assessSub.textContent = ns.assessed ? `${fmt(ns.assessed)} بحث مُقيَّم · متوسط قابلية التطبيق ${Number(ns.avg_score).toLocaleString("ar-SA")} من 5` : "توزيع الأبحاث حسب مستوى الأثر المتوقع";
+    const L = ns.impact_levels || {};
+    hbars(cLevels, [{ label: "أثر مرتفع", n: L.high || 0 }, { label: "أثر متوسط", n: L.medium || 0 }, { label: "أثر محدود", n: L.low || 0 }], "لم يُقيَّم أي بحث بعد");
+  }
+}
+
 // ===== إدارة الجهات =====
 fSectors.innerHTML = Object.entries(SECTORS).map(([k, v]) =>
   `<label class="check"><input type="checkbox" name="sec" value="${k}"><span>${v}</span></label>`).join("");
@@ -216,12 +281,12 @@ orgForm.addEventListener("submit", async (e) => {
   loadStats();
 });
 
-refreshBtn.addEventListener("click", async () => { refreshBtn.disabled = true; await loadStats(); refreshBtn.disabled = false; });
+refreshBtn.addEventListener("click", async () => { refreshBtn.disabled = true; await loadStats(); await loadNeeds(); refreshBtn.disabled = false; });
 
 (async () => {
   await renderChrome("admin");
   await requireAuth();
-  if (await loadStats()) loadOrgs();
+  if (await loadStats()) { loadOrgs(); loadNeeds(); }
 })();
 </script>
 </body>

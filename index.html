@@ -32,7 +32,7 @@
         <div class="flow-step"><div class="flow-dot l">١</div><div><b>ارفع بحثك</b><div class="muted small">ملف PDF بالعربية أو الإنجليزية</div></div></div>
         <div class="flow-step"><div class="flow-dot l">٢</div><div><b>اختر المخرجات</b><div class="muted small">واحد أو أكثر في نفس المرة</div></div></div>
         <div class="flow-step"><div class="flow-dot g">٣</div><div><b>استلم منتجك</b><div class="muted small">عاينه، انسخه، أو حمّله PDF</div></div></div>
-        <div class="flow-step"><div class="flow-dot g">٤</div><div><b>تواصل مع المستفيدين</b><div class="muted small">جهات سعودية مقترحة تناسب بحثك</div></div></div>
+        <div class="flow-step"><div class="flow-dot g">٤</div><div><b>اعرف قابلية بحثك للتطبيق</b><div class="muted small">تقدير للأثر المتوقع ومطابقة مع احتياجات الجهات</div></div></div>
       </div>
     </div>
   </section>
@@ -55,10 +55,36 @@
 
   <section class="section">
     <div class="container">
-      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-        <div><h2 style="margin:0">دليل الجهات المستفيدة</h2><p class="muted" style="margin:0">أكثر من 60 جهة سعودية حكومية وغير ربحية، مصنّفة حسب القطاع، مع روابط مواقعها الرسمية.</p></div>
-        <a class="btn green" href="directory.html">تصفّح الدليل</a>
+      <div class="section-title">
+        <h2>من البحث إلى الجهة التي تحتاجه</h2>
+        <p>ربط في الاتجاهين: الباحث يرفع رسالته، والجهات تسجّل احتياجاتها، وجَنى تطابق بينهما.</p>
       </div>
+      <div class="grid cols-3">
+        <div class="card"><div class="feature-icon l">🎯</div><h3>تقدير قابلية التطبيق</h3><p class="muted">درجة من 5 لكل رسالة وفق خمسة معايير: وضوح التوصيات، وإمكانية التنفيذ، وحاجة المجتمع، والموارد المطلوبة، وجاهزية المستفيدين.</p></div>
+        <div class="card"><div class="feature-icon g">🌱</div><h3>الأثر المتوقع</h3><p class="muted">مستوى الأثر إذا طُبّق البحث، والفئات المستفيدة، ومداه الزمني، ومؤشرات قابلة للقياس لمتابعته، مع شروط النجاح والمخاطر.</p></div>
+        <div class="card"><div class="feature-icon l">🧩</div><h3>مطابقة مع احتياجات الجهات</h3><p class="muted">الجهات تسجّل التحديات التي تبحث لها عن حلول، والذكاء الاصطناعي يطابق كل رسالة معها بدرجة تطابق وسبب واضح.</p></div>
+      </div>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px">
+        <div><h3 style="margin:0">هل تمثّل جهة؟</h3><p class="muted" style="margin:0">سجّل احتياج جهتك مجاناً وبدون حساب، وتصلك الأبحاث المطابقة عن طريق الباحثين أنفسهم.</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn green" href="needs.html#register">سجّل احتياج جهتك</a><a class="btn ghost" href="needs.html">تصفّح الاحتياجات</a><a class="btn ghost" href="directory.html">دليل الجهات (60+)</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="tech">
+    <div class="container">
+      <div class="section-title">
+        <h2>التقنيات المستخدمة</h2>
+        <p>شفافية كاملة: هذه التقنيات والنماذج التي تعمل بها جَنى فعلياً.</p>
+      </div>
+      <div class="tech-grid">
+        <div class="card"><h3>🤖 Google Gemini API</h3><p class="muted small">نموذج لغوي كبير متعدد الوسائط يقرأ ملف PDF مباشرة ويكتب المخرجات والتقييم بصيغة JSON منظّمة. النموذج الأساسي <code>gemini-3.5-flash-lite</code> والاحتياطي <code>gemini-3.8-flash</code>، ويُسجَّل اسم النموذج الفعلي مع كل مخرج.</p></div>
+        <div class="card"><h3>🧩 المطابقة والتقييم</h3><p class="muted small">تقييم آلي بنموذج Gemini نفسه وفق معايير محددة مسبقاً، مع تصفية أولية للاحتياجات حسب القطاع ثم مقارنة دلالية تعطي درجة تطابق (0–100) وسبباً مكتوباً.</p></div>
+        <div class="card"><h3>🗄️ Supabase</h3><p class="muted small">قاعدة بيانات <code>PostgreSQL</code> مع سياسات أمان على مستوى الصف (RLS)، وتسجيل دخول آمن، وتخزين مؤقت خاص للملفات، ودوال خادم <code>Edge Functions</code> بلغة TypeScript على Deno.</p></div>
+        <div class="card"><h3>🔎 التحقق من الملكية</h3><p class="muted small">مطابقة اسم الباحث مع أسماء مؤلفي البحث بواسطة Gemini، والاستعانة بقاعدة <code>Crossref API</code> العامة عند إدخال رقم DOI.</p></div>
+        <div class="card"><h3>🌐 الواجهة والاستضافة</h3><p class="muted small">صفحات HTML وCSS وJavaScript خفيفة باتجاه عربي كامل، مستضافة على <code>GitHub Pages</code>، بخطَّي IBM Plex Sans Arabic وحيّاكم.</p></div>
+      </div>
+      <p class="small muted" style="text-align:center;margin-top:14px"><a href="privacy.html#tech">تفاصيل أكثر عن التقنيات ومسار البيانات ←</a></p>
     </div>
   </section>
 
@@ -68,7 +94,7 @@
         <h2>بحثك ملكك</h2>
         <ul>
           <li>لا تطّلع إدارة المنصة على محتوى أي بحث أو مخرج.</li>
-          <li>يُعالَج البحث بالذكاء الاصطناعي، ثم <b>يُحذف ملفه تلقائياً</b> بعد إنتاج المخرجات.</li>
+          <li>يُعالَج البحث بنموذج <b>Google Gemini</b>، ثم <b>يُحذف ملفه تلقائياً</b> بعد إنتاج المخرجات.</li>
           <li>تقدر تحذف أبحاثك أو حسابك كاملاً نهائياً في أي وقت.</li>
         </ul>
         <p style="margin:16px 0 0"><a href="privacy.html">اقرأ سياسة الخصوصية كاملة</a></p>
